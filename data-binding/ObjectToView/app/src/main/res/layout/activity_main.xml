@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+
+        <variable
+            name="book"
+            type="com.example.objecttoview.Book" />
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context=".MainActivity">
+
+        <TextView
+            android:id="@+id/book_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@{book != null ? `이름: ` + book.name : `책 정보 없음`}"
+            android:textSize="30sp"
+            app:layout_constraintBottom_toTopOf="@+id/book_author"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_chainStyle="packed" />
+
+        <TextView
+            android:id="@+id/book_author"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@{book != null ? `저자: ` + book.author : ``}"
+            android:textSize="30sp"
+            app:layout_constraintBottom_toTopOf="@id/book_year"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/book_name" />
+
+        <TextView
+            android:id="@+id/book_year"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@{book != null ? `출판년도: ` + book.year + `년` : ``}"
+            android:textSize="30sp"
+            app:layout_constraintBottom_toTopOf="@id/guideline"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/book_author" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layout_constraintGuide_percent="0.5" />
+
+        <Button
+            android:id="@+id/button_book_1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="월든"
+            app:layout_constraintBottom_toTopOf="@id/button_book_3"
+            app:layout_constraintEnd_toStartOf="@id/button_book_2"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/guideline" />
+
+        <Button
+            android:id="@+id/button_book_2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="어린 왕자"
+            app:layout_constraintBottom_toTopOf="@id/button_book_4"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/button_book_1"
+            app:layout_constraintTop_toBottomOf="@+id/guideline" />
+
+        <Button
+            android:id="@+id/button_book_3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="도쿄의 디테일"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/button_book_4"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/button_book_1" />
+
+        <Button
+            android:id="@+id/button_book_4"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="플립 싱킹"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/button_book_3"
+            app:layout_constraintTop_toBottomOf="@+id/button_book_2" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>
