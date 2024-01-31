@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">FragmentLifecycleLogger</string>
+
+    <string name="title_home">Home</string>
+    <string name="title_dashboard">Dashboard</string>
+    <string name="title_notifications">Notifications</string>
+
+    <string name="title_home2">Home2</string>
+    <string name="title_dashboard2">Dashboard2</string>
+    <string name="title_notifications2">Notifications2</string>
+
+    <string name="information_home">This is MainActivity\'s home Fragment</string>
+    <string name="information_dashboard">This is MainActivity\'s dashboard Fragment</string>
+    <string name="information_notifications">This is MainActivity\'s notifications Fragment</string>
+
+    <string name="information_home2">This is SecondActivity\'s home2 Fragment</string>
+    <string name="information_dashboard2">This is SecondActivity\'s dashboard2 Fragment</string>
+    <string name="information_notifications2">This is SecondActivity\'s notifications2 Fragment</string>
+
+    <string name="button_home">Go SecondActivity\'s home2 Fragment</string>
+    <string name="button_dashboard">Go SecondActivity\'s dashboard2 Fragment</string>
+    <string name="button_notifications">Go SecondActivity\'s notifications2 Fragment</string>
+
+    <string name="button_home2">Go MainActivity\'s home Fragment</string>
+    <string name="button_dashboard2">Go MainActivity\'s dashboard Fragment</string>
+    <string name="button_notifications2">Go MainActivity\'s notifications Fragment</string>
+</resources>
