@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="text_size_button">24dp</dimen>
+    <dimen name="text_size_operand">24dp</dimen>
+    <dimen name="text_size_result">32dp</dimen>
+    <dimen name="layout_margin_bottom">32dp</dimen>
+</resources>

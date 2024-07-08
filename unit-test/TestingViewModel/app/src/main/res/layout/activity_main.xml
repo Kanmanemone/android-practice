@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+
+        <import type="com.example.testingviewmodel.MainConverter" />
+
+        <variable
+            name="viewModel"
+            type="com.example.testingviewmodel.CalculationViewModel" />
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintVertical_chainStyle="spread_inside"
+        tools:context=".MainActivity">
+
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/operandLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/layout_margin_bottom"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toTopOf="@id/buttonLayout"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_chainStyle="packed"
+            tools:layout_constraintHorizontal_chainStyle="packed">
+
+            <LinearLayout
+                android:id="@+id/operand1Layout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                app:layout_constraintBottom_toTopOf="@id/operand2Layout"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <TextView
+                    android:id="@+id/operand1Hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Operand 1: "
+                    android:textSize="@dimen/text_size_operand" />
+
+                <EditText
+                    android:id="@+id/operand1Text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ems="5"
+                    android:hint="Insert here"
+                    android:inputType="number"
+                    android:text="@={MainConverter.intToString(operand1Text, viewModel.operand1)}"
+                    android:textAlignment="center"
+                    android:textSize="@dimen/text_size_operand" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/operand2Layout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/operand1Layout">
+
+                <TextView
+                    android:id="@+id/operand2Hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Operand 2: "
+                    android:textSize="@dimen/text_size_operand" />
+
+                <EditText
+                    android:id="@+id/operand2Text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ems="5"
+                    android:hint="Insert here"
+                    android:inputType="number"
+                    android:text="@={MainConverter.intToString(operand2Text, viewModel.operand2)}"
+                    android:textAlignment="center"
+                    android:textSize="@dimen/text_size_operand" />
+
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <LinearLayout
+            android:id="@+id/buttonLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/layout_margin_bottom"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toTopOf="@id/resultLayout"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/operandLayout">
+
+            <Button
+                android:id="@+id/sumButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="@{() -> viewModel.onSumClicked()}"
+                android:text="Sum"
+                android:textSize="@dimen/text_size_button" />
+
+            <Button
+                android:id="@+id/multiplyButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="@{() -> viewModel.onMultiplyClicked()}"
+                android:text="Multiply"
+                android:textSize="@dimen/text_size_button" />
+
+            <Button
+                android:id="@+id/sumAndSquareButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:onClick="@{() -> viewModel.onSumAndSquareClicked()}"
+                android:text="Sum And Square"
+                android:textSize="@dimen/text_size_button" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/resultLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/layout_margin_bottom"
+            android:gravity="center"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/buttonLayout">
+
+            <TextView
+                android:id="@+id/resultHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Result: "
+                android:textSize="@dimen/text_size_result" />
+
+            <TextView
+                android:id="@+id/operationResult"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@{viewModel.result.toString()}"
+                android:textSize="@dimen/text_size_result"
+                tools:layout_constraintBottom_toBottomOf="parent" />
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>
