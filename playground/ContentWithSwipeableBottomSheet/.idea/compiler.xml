@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <bytecodeTargetLevel>
+      <module name="ContentWithSwipeableBottomSheet.core.ui" target="21" />
+      <module name="ContentWithSwipeableBottomSheet.ui.javaorkotlin" target="11" />
+      <module name="ContentWithSwipeableBottomSheet.ui.javaorkotlin.main" target="11" />
+      <module name="ContentWithSwipeableBottomSheet.ui.javaorkotlin.test" target="11" />
+      <module name="ContentWithSwipeableBottomSheet.ui.lib" target="11" />
+      <module name="ContentWithSwipeableBottomSheet.ui.lib.main" target="11" />
+      <module name="ContentWithSwipeableBottomSheet.ui.lib.test" target="11" />
+      <module name="ContentWithSwipeableBottomSheet.ui.myapplication" target="21" />
+      <module name="ContentWithSwipeableBottomSheet.ui.nativelib" target="21" />
+    </bytecodeTargetLevel>
+  </component>
+</project>
