@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlin.math.roundToInt
 
@@ -29,12 +29,10 @@ class DimensDataStore private constructor(
         val DEFAULT_IME_MAX_HEIGHT_VALUE = 250.dp.value.roundToInt()
 
         suspend fun create(context: Context): DimensDataStore {
-            val imeMaxHeightFlow: Flow<Dp> = flow {
-                context.dataStore.data.collect { preferences ->
-                    val height = (preferences[IME_MAX_HEIGHT_VALUE_KEY] ?: DEFAULT_IME_MAX_HEIGHT_VALUE).dp
-                    emit(height)
+            val imeMaxHeightFlow: Flow<Dp> =
+                context.dataStore.data.map { preferences ->
+                    (preferences[IME_MAX_HEIGHT_VALUE_KEY] ?: DEFAULT_IME_MAX_HEIGHT_VALUE).dp
                 }
-            }
 
             val imeMaxHeightStateFlow: StateFlow<Dp> =
                 imeMaxHeightFlow.stateIn(
