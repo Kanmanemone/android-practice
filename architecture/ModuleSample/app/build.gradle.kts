@@ -51,7 +51,7 @@ dependencies {
 
     // Retrofit
     implementation(libs.retrofit)
-    implementation(libs.converter.gson)
+    // implementation(libs.converter.gson)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
@@ -60,4 +60,6 @@ dependencies {
     // LiveData, ViewModel
     implementation(libs.lifecycle.livedata.ktx)
     implementation(libs.lifecycle.viewmodel.ktx)
+
+    implementation(project(":network"))
 }

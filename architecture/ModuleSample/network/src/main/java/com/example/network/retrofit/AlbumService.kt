@@ -1,4 +1,4 @@
-package com.example.modulesample.retrofit
+package com.example.network.retrofit
 
 import retrofit2.Response
 import retrofit2.http.GET

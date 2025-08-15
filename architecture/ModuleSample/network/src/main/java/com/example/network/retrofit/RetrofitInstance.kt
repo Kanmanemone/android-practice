@@ -1,4 +1,4 @@
-package com.example.modulesample.retrofit
+package com.example.network.retrofit
 
 import com.google.gson.GsonBuilder
 import retrofit2.Retrofit

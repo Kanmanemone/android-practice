@@ -1,7 +1,7 @@
 package com.example.modulesample
 
-import com.example.modulesample.retrofit.AlbumService
-import com.example.modulesample.retrofit.Albums
+import com.example.network.retrofit.AlbumService
+import com.example.network.retrofit.Albums
 import kotlinx.coroutines.delay
 import retrofit2.Response
 

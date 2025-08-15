@@ -8,9 +8,9 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.example.mvvmbasics.R
 import com.example.mvvmbasics.databinding.ActivityMainBinding
-import com.example.modulesample.retrofit.AlbumService
-import com.example.modulesample.retrofit.Albums
-import com.example.modulesample.retrofit.RetrofitInstance
+import com.example.network.retrofit.Albums
+import com.example.network.retrofit.AlbumService
+import com.example.network.retrofit.RetrofitInstance
 import retrofit2.Response
 
 class MainActivity : AppCompatActivity() {
