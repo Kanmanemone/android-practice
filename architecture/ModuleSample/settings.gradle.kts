@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ModuleSample"
 include(":app")
- 
+include(":network")
