@@ -21,4 +21,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "ContentWithSwipeableBottomSheet"
 include(":app")
- 
+include(":ui")
+include(":datastore")
+include(":datastore")

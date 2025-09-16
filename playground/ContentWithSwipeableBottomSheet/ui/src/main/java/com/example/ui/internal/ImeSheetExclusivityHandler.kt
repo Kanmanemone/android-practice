@@ -1,4 +1,4 @@
-package com.example.contentwithswipeablebottomsheet.component
+package com.example.ui.internal
 
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.animateTo
@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imeAnimationSource
 import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -16,12 +18,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import com.example.contentwithswipeablebottomsheet.component.core.SheetValue
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ImeSheetExclusivityHandler(
+internal fun ImeSheetExclusivityHandler(
     anchoredDraggableState: AnchoredDraggableState<SheetValue>
 ) {
     val imeController = LocalSoftwareKeyboardController.current

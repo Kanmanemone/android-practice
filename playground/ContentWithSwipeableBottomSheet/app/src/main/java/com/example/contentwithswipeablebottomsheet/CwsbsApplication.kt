@@ -1,18 +1,12 @@
 package com.example.contentwithswipeablebottomsheet
 
 import android.app.Application
-import com.example.contentwithswipeablebottomsheet.data.DimensDataStore
-import kotlinx.coroutines.runBlocking
+import com.example.datastore.SystemPreferences
 
 class CwsbsApplication : Application() {
-    lateinit var dimensDataStore: DimensDataStore
-        private set
 
     override fun onCreate() {
         super.onCreate()
-
-        runBlocking {
-            dimensDataStore = DimensDataStore.create(this@CwsbsApplication)
-        }
+        SystemPreferences.init(this@CwsbsApplication)
     }
 }

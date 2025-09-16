@@ -18,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -35,14 +36,11 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import com.example.contentwithswipeablebottomsheet.R
-import com.example.contentwithswipeablebottomsheet.component.BottomSheetBackHandler
-import com.example.contentwithswipeablebottomsheet.component.ImeSheetExclusivityHandler
 import com.example.contentwithswipeablebottomsheet.component.TextFieldAutoFocusOnceWithoutIme
-import com.example.contentwithswipeablebottomsheet.component.core.BottomOccupier
-import com.example.contentwithswipeablebottomsheet.component.core.ContentWithSwipeableBottomSheet
-import com.example.contentwithswipeablebottomsheet.component.core.SheetValue
-import com.example.contentwithswipeablebottomsheet.component.core.rememberContentWithSwipeableBottomSheetState
-import com.example.contentwithswipeablebottomsheet.data.storedImeMaxHeight
+import com.example.contentwithswipeablebottomsheet.component.storedImeMaxHeight
+import com.example.ui.BottomOccupier
+import com.example.ui.ContentWithSwipeableBottomSheet
+import com.example.ui.rememberContentWithSwipeableBottomSheetState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,7 +49,6 @@ fun SampleScreen() {
     val scope = rememberCoroutineScope()
 
     val sheetState = rememberContentWithSwipeableBottomSheetState()
-    ImeSheetExclusivityHandler(sheetState.anchoredDraggableState)
 
     var sheetExpandedAnchorOffset by remember { mutableStateOf(0.dp) }
 
@@ -70,8 +67,6 @@ fun SampleScreen() {
                     Spacer(Modifier.navigationBarsPadding())
                 }
             }
-
-            BottomSheetBackHandler(sheetState.anchoredDraggableState)
         },
         modifier = Modifier
             .fillMaxSize()

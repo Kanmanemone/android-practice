@@ -1,10 +1,12 @@
-package com.example.contentwithswipeablebottomsheet.component.core
+package com.example.ui
 
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 enum class BottomOccupier { None, Ime, BottomSheet }
 
+@OptIn(ExperimentalMaterial3Api::class)
 class ContentWithSwipeableBottomSheetState(
     val anchoredDraggableState: AnchoredDraggableState<SheetValue>,
     val isImeAppearingState: State<Boolean>
@@ -59,7 +62,7 @@ class ContentWithSwipeableBottomSheetState(
         }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun rememberContentWithSwipeableBottomSheetState(
     anchoredDraggableState: AnchoredDraggableState<SheetValue> = AnchoredDraggableState(SheetValue.Hidden),
