@@ -1,0 +1,49 @@
+# Gradle / Kotlin build outputs
+.gradle/
+.gradle-user-home/
+.kotlin/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local configuration (SDK path, etc.)
+local.properties
+
+# Spec Kit: local/session-only state, not shared across the team
+.specify/feature.json
+.specify/extensions/*/local-config.yml
+.specify/extensions/.cache/
+.specify/extensions/.backup/
+
+# IntelliJ / Android Studio project files, because
+# the project can be re-imported from settings.gradle.kts
+*.iml
+.idea/*
+# Keep the code styles.
+!/.idea/codeStyles
+/.idea/codeStyles/*
+!/.idea/codeStyles/Project.xml
+!/.idea/codeStyles/codeStyleConfig.xml
+
+# Packaging / profiling artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+output-metadata.json
+*.hprof
+
+# Logs
+*.log
+
+# Signing keys & service configs - never commit these
+*.jks
+*.keystore
+google-services.json
+*.env
+*.env.*
+
+# OS
+.DS_Store
+Thumbs.db
