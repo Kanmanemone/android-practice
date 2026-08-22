@@ -9,13 +9,18 @@ class MyModule {
 
     @Provides
     @Named("Airbag")
-    fun providesAirbagManufacturer(): String {
-        return "KENEL"
+    fun providesAirbagManufacturer(productCode: Int): String {
+        return "KENEL-$productCode"
     }
 
     @Provides
     @Named("Battery")
     fun providesBatteryManufacturer(): String {
         return "TISTORY"
+    }
+
+    @Provides
+    fun providesAirbagProductCode(): Int {
+        return 20260822
     }
 }
