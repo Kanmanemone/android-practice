@@ -26,3 +26,4 @@ rootProject.name = "BulletedListOnTextField"
 include(":app")
 include(":core:entry-api")
 include(":entry:option-example")
+include(":entry:option-sentinel")
