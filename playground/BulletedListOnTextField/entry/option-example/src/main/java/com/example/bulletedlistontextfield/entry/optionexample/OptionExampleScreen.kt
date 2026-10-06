@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun OptionExampleScreen(
     modifier: Modifier = Modifier,
-    initialLabel: String = "이름",
+    initialLabel: String = "",
     initialText: String = "",
 ) {
     var label by remember { mutableStateOf(initialLabel) }
@@ -30,7 +30,7 @@ fun OptionExampleScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         OutlinedTextField(
