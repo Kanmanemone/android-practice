@@ -19,12 +19,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import com.example.splitlabeltext.entry.api.MyNavKey
+import com.example.splitlabeltext.ui.info.NavKeyInfoButton
+import com.example.splitlabeltext.ui.info.NavKeyInfoDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,12 +38,22 @@ fun SplitLabelTextApp(
     navBackStack: NavBackStack<MyNavKey>,
     entries: Set<MyNavKey>
 ) {
+    val currentKey = navBackStack.lastOrNull()
+
+    /** 정보 다이얼로그를 띄울 대상. `null`이면 닫힌 상태. */
+    var infoKey by remember { mutableStateOf<MyNavKey?>(null) }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(navBackStack.lastOrNull()?.title.orEmpty())
+                    Text(currentKey?.title.orEmpty())
+                },
+                actions = {
+                    if (!currentKey?.description.isNullOrEmpty()) {
+                        NavKeyInfoButton(onClick = { infoKey = currentKey })
+                    }
                 },
                 navigationIcon = {
                     if (navBackStack.size > 1) {
@@ -89,6 +105,10 @@ fun SplitLabelTextApp(
                 }
             },
         )
+    }
+
+    infoKey?.let { key ->
+        NavKeyInfoDialog(key = key, onDismiss = { infoKey = null })
     }
 }
 

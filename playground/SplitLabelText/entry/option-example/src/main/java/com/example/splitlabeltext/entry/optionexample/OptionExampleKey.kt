@@ -11,7 +11,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 object OptionExampleKey : MyNavKey {
-    override val title = "(예시) 독립된 두 필드"
+    override val title = "[예시] 독립된 두 필드"
+    override val description = """
+        Label 필드와 Text 필드를 따로 둔 가장 단순한 형태의 예시다.
+    """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionExampleScreen() }
 }
 

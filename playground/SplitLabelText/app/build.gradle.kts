@@ -43,6 +43,7 @@ android {
 dependencies {
     implementation(project(":core:entry-api"))
     implementation(project(":entry:option-example"))
+    implementation(project(":entry:option-sentinel"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
