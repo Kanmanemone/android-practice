@@ -20,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.bulletedlistontextfield.entry.api.MyNavKey
 import com.example.bulletedlistontextfield.ui.info.NavKeyInfoButton
@@ -64,10 +63,7 @@ fun OptionListScreen(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         ),
                     ) {
-                        Text(
-                            text = entry.title,
-                            textAlign = TextAlign.Center,
-                        )
+                        Text(entry.title)
                     }
                     if (entry.description.isNotEmpty()) {
                         NavKeyInfoButton(onClick = { infoKey = entry })
