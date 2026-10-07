@@ -17,7 +17,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 object OptionListKey : MyNavKey {
-    override val title = "옵션 목록"
+    override val title = "구현 방법 목록"
     override val screen: @Composable () -> Unit = {
         val viewModel = hiltViewModel<OptionListViewModel>()
         OptionListScreen(

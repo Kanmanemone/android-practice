@@ -44,6 +44,7 @@ dependencies {
     implementation(project(":core:entry-api"))
     implementation(project(":entry:option-example"))
     implementation(project(":entry:option-sentinel"))
+    implementation(project(":entry:option-state-based-textfield"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

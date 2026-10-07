@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 object OptionSentinelKey : MyNavKey {
-    override val title = "Sentinel 써서 개행 시 새 컴포넌트"
+    override val title = "[1] Sentinel 써서 개행 시 새 컴포넌트"
     override val description = """
         한 필드 안에서 줄을 바꾸지 않고, 개행할 때마다 입력 필드(컴포넌트)를 새로 만든다.
 
