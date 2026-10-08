@@ -22,6 +22,8 @@ object OptionStateDrawnBulletKey : MyNavKey {
         • 긴 줄이 넘어가도 글자 시작선에 맞춰 들여쓰기된다.
 
         맨 앞 sentinel(폭 0인 문자)은 그대로 둔다. 빈 첫 줄에서 누른 Backspace를 감지하는 데 쓴다.
+        
+        * 그런데 foundation 라이브러리를 최신 버전으로 올리니 있던 버그가 없어졌다. 그렇다고 굳이 이 모듈을 제거하고 싶지는 않다. 나중에 혹시라도 활용 여지가 있을 수 있으니, 남겨두겠다. 
     """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionStateDrawnBulletScreen() }
 }
