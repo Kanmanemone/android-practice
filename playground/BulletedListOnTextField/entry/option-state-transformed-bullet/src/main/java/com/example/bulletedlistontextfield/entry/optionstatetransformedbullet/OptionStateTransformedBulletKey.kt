@@ -15,7 +15,9 @@ object OptionStateTransformedBulletKey : MyNavKey {
     override val description = """
         InputTransformation 및 OutputTransformation으로, 입력 및 출력을 가로채어 Bullet 문자를 삽입한(끼워넣는)다.
         
-        * 런타임 버그로 인해 이 구현 방법은 폐기할랬는데, 다행히 androidx.compose.foundation:foundation 라이브러리가 업데이트되며 버그가 해결되었다.
+        치명적인 단점이 있다. 텍스트 전체 선택 → 복사 → 붙여넣기를 하면, Bullet까지 같이 붙여넣어진다. 이걸 어떻게든 우회할 수 있을지는 몰라도, 그 우회책 또한 잠재적인 에러를 발생시킬 것으로 예상한다.
+        
+        애초에, OutputTransformation은 전화번호 등을 입력할 때 괄호, 공백, "-" 따위를 넣기 쉽게하기 위한 용도라 한다. 나와는 처음부터 결이 맞지 않았는지도 모르겠다.
     """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionStateTransformedBulletScreen() }
 }
