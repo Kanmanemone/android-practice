@@ -45,6 +45,7 @@ dependencies {
     implementation(project(":entry:option-example"))
     implementation(project(":entry:option-sentinel"))
     implementation(project(":entry:option-state-based-textfield"))
+    implementation(project(":entry:option-state-transformed-bullet"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
