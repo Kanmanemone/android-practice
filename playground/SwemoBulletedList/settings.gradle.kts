@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "SwemoBulletedList"
 include(":app")
 include(":core:entry-api")
+include(":entry:option-state-drawn-bullet")

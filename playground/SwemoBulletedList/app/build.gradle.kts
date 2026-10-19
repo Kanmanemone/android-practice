@@ -42,6 +42,7 @@ android {
 
 dependencies {
     implementation(project(":core:entry-api"))
+    implementation(project(":entry:option-state-drawn-bullet"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
