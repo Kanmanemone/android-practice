@@ -135,8 +135,9 @@ internal fun BulletListTextField(
  *
  * - 줄의 시작은 텍스트 맨 앞, 그리고 `\n` 바로 뒤다.
  * - 줄바꿈으로 넘어간 줄에는 그리지 않는다. 불릿은 항목마다 하나다.
- * - 불릿은 텍스트 영역 왼쪽의 불릿 칸(x = 0)에, 그 줄의 글자 기준선(baseline)에 맞춰 그린다.
- *     - 윗선(lineTop)에 맞추면 어긋난다. 첫 줄은 줄 높이 윗부분이 잘려(trim) 그려지고 나머지 줄은 아니라서, 줄마다 글자와 윗선 사이 간격이 다르다.
+ * - 불릿은 텍스트 영역 왼쪽의 불릿 칸(x = 0)에, 그 줄 상자(lineTop ~ lineBottom)의 세로 가운데에 맞춰 그린다.
+ *     - 글자 기준선(baseline)에 맞추면, 한글처럼 대체 글꼴이 섞일 때 기준선이 움직여 불릿도 따라 움직인다.
+ *     - 줄 상자는 글꼴과 상관없이 정해지므로 불릿이 움직이지 않는다. 단, [textStyle]에 `lineHeight`가 있고 `LineHeightStyle.Trim.None`이어야 모든 줄 상자 높이가 같다.
  */
 private fun DrawScope.drawBullets(
     layout: TextLayoutResult,
@@ -146,12 +147,15 @@ private fun DrawScope.drawBullets(
     val text = layout.layoutInput.text
     var lineStart = 0
     while (true) {
-        val line = layout.getLineForOffset(lineStart)
-        val top = layout.getLineBaseline(line) - bulletLayout.firstBaseline // 불릿의 기준선을 그 줄의 기준선에 맞춘다
-        drawText(bulletLayout, topLeft = Offset(0f, top) + scroll)
+        val line = layout.getLineForOffset(lineStart) // lineStart가 속한 줄 번호
+        val lineHeight = layout.getLineBottom(line) - layout.getLineTop(line) // 줄 상자의 아래쪽 Y - 위쪽 Y
 
-        val newline = text.indexOf('\n', startIndex = lineStart)
+        val centeringOffset = (lineHeight - bulletLayout.size.height) / 2
+        val topOffset = layout.getLineTop(line) + centeringOffset // 불릿 상자를 줄 상자 가운데에 놓는다
+        drawText(bulletLayout, topLeft = Offset(0f, topOffset) + scroll)
+
+        val newline = text.indexOf('\n', startIndex = lineStart) // 다음 개행 문자의 인덱스. 없으면 -1
         if (newline < 0) break
-        lineStart = newline + 1
+        lineStart = newline + 1 // 개행 문자 바로 뒤에서 다음 줄 시작
     }
 }
