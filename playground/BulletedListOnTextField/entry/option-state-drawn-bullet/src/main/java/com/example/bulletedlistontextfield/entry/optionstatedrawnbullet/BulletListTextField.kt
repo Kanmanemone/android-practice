@@ -3,6 +3,7 @@ package com.example.bulletedlistontextfield.entry.optionstatedrawnbullet
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,7 +29,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Density
 
 /** 각 줄 앞에 그리는 Bullet (글머리 기호). 뒤 간격까지 포함한다. */
@@ -38,9 +38,10 @@ private const val BULLET = "•  "
  * 단일 [BasicTextField] 하나로 그리는 불릿 리스트 입력 필드.
  *
  * - 한 줄이 곧 한 항목이다. 개행으로 항목을 나누고, 줄 맨 앞 Backspace로 합친다.
- * - 불릿은 텍스트가 아니라 그림이다. 줄마다 [BULLET] 폭만큼 들여쓰고(`textIndent`), 그 빈자리에 불릿을 그린다.
+ * - 불릿은 텍스트가 아니라 그림이다. decorator 안에서 텍스트 영역 왼쪽에 [BULLET] 폭만큼 padding을 두고, 그 padding에 불릿을 그린다.
  *     - 화면 텍스트가 저장값과 똑같아서, 커서 위치를 따로 보정할 필요가 없다.
- *     - 긴 줄이 넘어가도 글자 시작선에 맞춰 들여쓰기된다.
+ *     - 불릿 자리가 텍스트 레이아웃 바깥이라, 드래그 선택 하이라이트가 불릿에 닿지 않는다. (`textIndent`로 들여쓰면 여러 줄 선택 시 가운데 줄 하이라이트가 줄 전체 폭으로 칠해져 불릿을 덮는다.)
+ *     - 줄바꿈은 padding 안쪽 폭에서 일어나므로, 긴 줄이 넘어가도 글자 시작선에 맞춰진다.
  * - 파라미터는 `BasicTextField(state)`와 같다. 단, `inputTransformation`과 `outputTransformation`은 없다.
  *     - `inputTransformation`은 sentinel 규칙(`BulletListTransformation.kt`)이 차지한다.
  *     - `outputTransformation`은 불릿을 그림으로 붙이므로 필요하지 않아 열어두지 않는다.
@@ -63,19 +64,13 @@ internal fun BulletListTextField(
     decorator: TextFieldDecorator? = null,
     scrollState: ScrollState = rememberScrollState(),
 ) {
-    /** 불릿 한 개를 [textStyle]로 측정한 결과. 들여쓰기 폭과 그리기에 같이 쓴다. */
+    /** 불릿 한 개를 [textStyle]로 측정한 결과. 불릿 칸의 폭과 그리기에 같이 쓴다. */
     val textMeasurer = rememberTextMeasurer()
     val bulletLayout = remember(textMeasurer, textStyle) { textMeasurer.measure(BULLET, textStyle) }
 
-    /** 모든 줄을 불릿 폭만큼 들여쓴 스타일. 첫 줄(firstLine)과 줄바꿈된 줄(restLine) 모두 같은 폭이다. */
-    val indent = with(LocalDensity.current) { bulletLayout.size.width.toSp() }
-    val indentedStyle = textStyle.merge(TextStyle(textIndent = TextIndent(firstLine = indent, restLine = indent)))
+    /** 텍스트 영역 왼쪽에 비워 둘 불릿 칸의 폭. */
+    val bulletGutter = with(LocalDensity.current) { bulletLayout.size.width.toDp() }
 
-    /**
-     * 최신 텍스트 레이아웃을 꺼내는 함수. 불릿을 그릴 줄 위치를 여기서 얻는다.
-     *
-     * - [BasicTextField]의 onTextLayout으로 받아 둔다. 그리기 단계에서만 읽으므로 레이아웃이 바뀌면 다시 그리기만 일어난다.
-     */
     var getTextLayout: (() -> TextLayoutResult?)? by remember { mutableStateOf(null) }
 
     BasicTextField(
@@ -84,7 +79,7 @@ internal fun BulletListTextField(
         enabled = enabled,
         readOnly = readOnly,
         inputTransformation = BulletListInputTransformation,
-        textStyle = indentedStyle,
+        textStyle = textStyle,
         keyboardOptions = keyboardOptions,
         onKeyboardAction = onKeyboardAction,
         lineLimits = lineLimits,
@@ -95,11 +90,18 @@ internal fun BulletListTextField(
         interactionSource = interactionSource,
         cursorBrush = cursorBrush,
         decorator = { innerTextField ->
-            /** 텍스트 영역 뒤에 불릿을 그린다. 호출부의 decorator가 있으면 그 안쪽에 들어간다. */
+            /**
+             * 텍스트 영역 왼쪽에 불릿 칸(padding)을 두고, 그 칸에 불릿을 그린다.
+             *
+             * - 호출부가 decorator를 넘겼다면, 이 Box가 그 decorator의 innerTextField 자리에 들어간다. 즉 불릿 칸은 decorator 장식보다 안쪽이다.
+             * - Modifier는 앞에서부터 적용된다. drawBehind가 padding보다 앞에 있으므로 패딩 전의 Box 전체를 그리기 영역으로 받는다.
+             *     - 그래서 그리기 좌표 x = 0이 불릿 칸의 왼쪽 끝이고, 텍스트는 x = bulletGutter부터 시작한다.
+             *     - 순서를 바꾸면 x = 0이 텍스트 시작점이 되어 불릿이 글자와 겹친다.
+             */
             val bulletedTextField = @Composable {
                 Box(
                     Modifier
-                        .clipToBounds() // 스크롤로 밀려난 불릿이 영역 밖에 그려지지 않게
+                        .clipToBounds() // 스크롤로 밀려난 불릿이 영역(=Box) 밖에 그려지지 않게
                         .drawBehind {
                             getTextLayout?.invoke()?.let { layout ->
                                 val scrollOffset = scrollState.value.toFloat()
@@ -110,12 +112,19 @@ internal fun BulletListTextField(
                                 }
                                 drawBullets(layout, bulletLayout, scroll)
                             }
-                        },
+                        }
+                        .padding(start = bulletGutter),
+                    propagateMinConstraints = true, // innerTextField가 글자 폭으로 줄지 않고 남은 영역을 꽉 채우게
                 ) {
                     innerTextField()
                 }
             }
-            decorator?.Decoration(bulletedTextField) ?: bulletedTextField()
+
+            if (decorator == null) {
+                bulletedTextField()
+            } else {
+                decorator.Decoration(bulletedTextField)
+            }
         },
         scrollState = scrollState,
     )
@@ -126,7 +135,7 @@ internal fun BulletListTextField(
  *
  * - 줄의 시작은 텍스트 맨 앞, 그리고 `\n` 바로 뒤다.
  * - 줄바꿈으로 넘어간 줄에는 그리지 않는다. 불릿은 항목마다 하나다.
- * - 불릿은 들여쓰기로 비워 둔 왼쪽 빈자리(x = 0)에, 그 줄의 글자 기준선(baseline)에 맞춰 그린다.
+ * - 불릿은 텍스트 영역 왼쪽의 불릿 칸(x = 0)에, 그 줄의 글자 기준선(baseline)에 맞춰 그린다.
  *     - 윗선(lineTop)에 맞추면 어긋난다. 첫 줄은 줄 높이 윗부분이 잘려(trim) 그려지고 나머지 줄은 아니라서, 줄마다 글자와 윗선 사이 간격이 다르다.
  */
 private fun DrawScope.drawBullets(
