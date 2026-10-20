@@ -17,7 +17,9 @@ object OptionStateTextIndentBulletKey : MyNavKey {
 
          들여쓰기는 문단마다 다르게 줄 수 있어, 이후 문단별로 Bullet 자리를 조정하는 토대가 된다.
 
-         (작업 중) 여러 줄 선택 시 하이라이트가 Bullet을 덮는 문제가 아직 남아 있다.
+         선택 하이라이트는 직접 그려, 여러 줄을 선택해도 Bullet 자리를 칠하지 않는다.
+
+         (작업 중) 문단마다 들여쓰기를 다르게 거는 기반은 아직 없다.
     """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionStateTextIndentBulletScreen() }
 }

@@ -10,7 +10,10 @@ import androidx.compose.foundation.text.input.KeyboardActionHandler
 import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,12 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -34,6 +39,9 @@ import androidx.compose.ui.unit.Density
 /** 각 줄 앞에 그리는 Bullet (글머리 기호). 뒤 간격까지 포함한다. */
 private const val BULLET = "•  "
 
+/** 선택이 문단 끝 `\n`을 넘어갈 때 그 줄 끝에 덧칠하는 폭의 기준 글자. 빈 문단도 선택된 게 보이게 한다. */
+private const val NEWLINE_MARK = " "
+
 /**
  * 단일 [BasicTextField] 하나로 그리는 불릿 리스트 입력 필드.
  *
@@ -42,7 +50,9 @@ private const val BULLET = "•  "
  *     - 화면 텍스트가 저장값과 똑같아서, 커서 위치를 따로 보정할 필요가 없다.
  *     - 첫 줄(`firstLine`)과 넘친 줄(`restLine`)을 같은 폭으로 들여쓰므로, 긴 줄이 넘어가도 글자 시작선에 맞춰진다.
  *     - [0] drawn-bullet은 이 자리를 decorator의 padding으로 냈다. 들여쓰기는 문단마다 다르게 줄 수 있어서 그쪽으로 바꿨다.
- *     - 알려진 문제: 여러 줄을 선택하면 가운데 줄 하이라이트가 줄 전체 폭으로 칠해져 불릿을 덮는다.
+ * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
+ *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
+ *     - 칠하는 색은 호출부의 `LocalTextSelectionColors`에서 가져온다. 테마의 선택 색이 그대로 쓰인다.
  * - 파라미터는 `BasicTextField(state)`와 같다. 단, `inputTransformation`과 `outputTransformation`은 없다.
  *     - `inputTransformation`은 sentinel 규칙(`BulletListTransformation.kt`)이 차지한다.
  *     - `outputTransformation`은 마지막 빈 문단의 들여쓰기 보정(`BulletListTransformation.kt`)이 차지한다.
@@ -81,61 +91,78 @@ internal fun BulletListTextField(
         textStyle.copy(textIndent = TextIndent(firstLine = bulletIndent, restLine = bulletIndent))
     }
 
+    /** 문단 끝 `\n`까지 선택했을 때 줄 끝에 덧칠하는 폭. */
+    val newlineMarkWidth = remember(textMeasurer, textStyle) { textMeasurer.measure(NEWLINE_MARK, textStyle).size.width.toFloat() }
+
+    /**
+     * 선택 색.
+     *
+     * - [selectionColor]는 직접 칠할 때 쓰고, 기본 하이라이트는 [hiddenHighlightColors]로 투명하게 만든다.
+     */
+    val selectionColors = LocalTextSelectionColors.current
+    val selectionColor = selectionColors.backgroundColor
+    val hiddenHighlightColors = remember(selectionColors) {
+        TextSelectionColors(handleColor = selectionColors.handleColor, backgroundColor = Color.Transparent)
+    }
+
     var getTextLayout: (() -> TextLayoutResult?)? by remember { mutableStateOf(null) }
 
-    BasicTextField(
-        state = state,
-        modifier = modifier,
-        enabled = enabled,
-        readOnly = readOnly,
-        inputTransformation = BulletListInputTransformation,
-        outputTransformation = BulletListOutputTransformation,
-        textStyle = indentedTextStyle,
-        keyboardOptions = keyboardOptions,
-        onKeyboardAction = onKeyboardAction,
-        lineLimits = lineLimits,
-        onTextLayout = { getResult ->
-            getTextLayout = getResult
-            onTextLayout?.invoke(this, getResult) // 호출부가 넘긴 콜백도 그대로 불러준다
-        },
-        interactionSource = interactionSource,
-        cursorBrush = cursorBrush,
-        decorator = { innerTextField ->
-            /**
-             * 텍스트 영역 뒤에 불릿을 그린다.
-             *
-             * - 호출부가 decorator를 넘겼다면, 이 Box가 그 decorator의 innerTextField 자리에 들어간다. 즉 불릿은 decorator 장식보다 안쪽이다.
-             * - Box와 텍스트 레이아웃의 좌표가 같다. 들여쓰기는 텍스트 레이아웃 안에서 일어나므로, 불릿 위치도 레이아웃 좌표로 바로 구한다.
-             */
-            val bulletedTextField = @Composable {
-                Box(
-                    Modifier
-                        .clipToBounds() // 스크롤로 밀려난 불릿이 영역(=Box) 밖에 그려지지 않게
-                        .drawBehind {
-                            getTextLayout?.invoke()?.let { layout ->
-                                val scrollOffset = scrollState.value.toFloat()
-                                val scroll = if (lineLimits == TextFieldLineLimits.SingleLine) {
-                                    Offset(-scrollOffset, 0f) // 한 줄 모드는 가로로 스크롤된다
-                                } else {
-                                    Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
+    CompositionLocalProvider(LocalTextSelectionColors provides hiddenHighlightColors) {
+        BasicTextField(
+            state = state,
+            modifier = modifier,
+            enabled = enabled,
+            readOnly = readOnly,
+            inputTransformation = BulletListInputTransformation,
+            outputTransformation = BulletListOutputTransformation,
+            textStyle = indentedTextStyle,
+            keyboardOptions = keyboardOptions,
+            onKeyboardAction = onKeyboardAction,
+            lineLimits = lineLimits,
+            onTextLayout = { getResult ->
+                getTextLayout = getResult
+                onTextLayout?.invoke(this, getResult) // 호출부가 넘긴 콜백도 그대로 불러준다
+            },
+            interactionSource = interactionSource,
+            cursorBrush = cursorBrush,
+            decorator = { innerTextField ->
+                /**
+                 * 텍스트 영역 뒤에 선택 하이라이트와 불릿을 그린다.
+                 *
+                 * - 호출부가 decorator를 넘겼다면, 이 Box가 그 decorator의 innerTextField 자리에 들어간다. 즉 불릿은 decorator 장식보다 안쪽이다.
+                 * - Box와 텍스트 레이아웃의 좌표가 같다. 들여쓰기는 텍스트 레이아웃 안에서 일어나므로, 불릿 위치도 레이아웃 좌표로 바로 구한다.
+                 */
+                val bulletedTextField = @Composable {
+                    Box(
+                        Modifier
+                            .clipToBounds() // 스크롤로 밀려난 불릿이 영역(=Box) 밖에 그려지지 않게
+                            .drawBehind {
+                                getTextLayout?.invoke()?.let { layout ->
+                                    val scrollOffset = scrollState.value.toFloat()
+                                    val scroll = if (lineLimits == TextFieldLineLimits.SingleLine) {
+                                        Offset(-scrollOffset, 0f) // 한 줄 모드는 가로로 스크롤된다
+                                    } else {
+                                        Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
+                                    }
+                                    drawSelection(layout, state.selection, selectionColor, newlineMarkWidth, scroll)
+                                    drawBullets(layout, bulletLayout, scroll)
                                 }
-                                drawBullets(layout, bulletLayout, scroll)
-                            }
-                        },
-                    propagateMinConstraints = true, // innerTextField가 글자 폭으로 줄지 않고 남은 영역을 꽉 채우게
-                ) {
-                    innerTextField()
+                            },
+                        propagateMinConstraints = true, // innerTextField가 글자 폭으로 줄지 않고 남은 영역을 꽉 채우게
+                    ) {
+                        innerTextField()
+                    }
                 }
-            }
 
-            if (decorator == null) {
-                bulletedTextField()
-            } else {
-                decorator.Decoration(bulletedTextField)
-            }
-        },
-        scrollState = scrollState,
-    )
+                if (decorator == null) {
+                    bulletedTextField()
+                } else {
+                    decorator.Decoration(bulletedTextField)
+                }
+            },
+            scrollState = scrollState,
+        )
+    }
 }
 
 /**
@@ -168,5 +195,52 @@ private fun DrawScope.drawBullets(
         val newline = text.indexOf('\n', startIndex = lineStart) // 다음 개행 문자의 인덱스. 없으면 -1
         if (newline < 0) break
         lineStart = newline + 1 // 개행 문자 바로 뒤에서 다음 줄 시작
+    }
+}
+
+/**
+ * 선택 범위를 줄마다 직사각형으로 칠한다. 기본 하이라이트를 대신한다.
+ *
+ * - 줄마다 칠하는 가로 범위는 이렇다.
+ *     - 시작 x: 첫 줄이면 선택 시작 offset의 커서 x, 아니면 그 줄 첫 글자의 커서 x.
+ *     - 끝 x: 마지막 줄이면 선택 끝 offset의 커서 x, 아니면 `getLineRight`(줄 끝 공백 제외).
+ * - 줄 첫 글자의 커서 x에는 들여쓰기가 반영되어 있어, 불릿 자리는 칠하지 않는다.
+ *     - `getLineLeft`는 쓰지 않는다. Android 레이아웃은 왼쪽 정렬 줄에서 들여쓰기와 상관없이 0을 돌려준다.
+ * - 선택이 문단 끝 `\n`을 넘어가면 그 줄 끝에 [newlineMarkWidth]만큼 더 칠한다. 빈 문단도 선택된 게 보인다.
+ * - 세로 범위는 줄 상자(lineTop ~ lineBottom)다.
+ * - 왼쪽에서 오른쪽으로 쓰는 글(LTR)만 고려한다.
+ */
+private fun DrawScope.drawSelection(
+    layout: TextLayoutResult,
+    selection: TextRange,
+    color: Color,
+    newlineMarkWidth: Float,
+    scroll: Offset,
+) {
+    if (selection.collapsed) return
+    val text = layout.layoutInput.text
+    val firstLine = layout.getLineForOffset(selection.min)
+    val lastLine = layout.getLineForOffset(selection.max)
+    for (line in firstLine..lastLine) {
+        val left = if (line == firstLine) {
+            layout.getHorizontalPosition(selection.min, usePrimaryDirection = true)
+        } else {
+            layout.getHorizontalPosition(layout.getLineStart(line), usePrimaryDirection = true)
+        }
+        val right = if (line == lastLine) {
+            layout.getHorizontalPosition(selection.max, usePrimaryDirection = true)
+        } else {
+            val lineEnd = layout.getLineEnd(line) // `\n`이 있으면 그 뒤 offset
+            val endsParagraph = lineEnd > 0 && text[lineEnd - 1] == '\n'
+            layout.getLineRight(line) + if (endsParagraph) newlineMarkWidth else 0f
+        }
+        if (right <= left) continue
+
+        val top = layout.getLineTop(line)
+        drawRect(
+            color = color,
+            topLeft = Offset(left, top) + scroll,
+            size = Size(right - left, layout.getLineBottom(line) - top),
+        )
     }
 }
