@@ -25,7 +25,7 @@ object OptionStatePillBulletKey : MyNavKey {
 
          알약 배경은 텍스트 영역 왼쪽 밖(decorator나 바깥 padding 자리)까지 넘칠 수 있다.
 
-         (작업 중) 파라미터 정리가 남아 있다.
+         알약 색, 왼쪽 안쪽 여백, 넘친 줄 들여쓰기(Bullet 자리 또는 알약 뒤 본문 시작선), 넘침 폭은 PillStyle로 정한다.
     """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionStatePillBulletScreen() }
 }

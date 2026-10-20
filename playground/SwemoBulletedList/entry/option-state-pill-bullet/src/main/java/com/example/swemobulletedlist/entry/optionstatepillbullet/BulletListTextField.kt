@@ -60,13 +60,12 @@ private val PILL_VERTICAL_INSET = 2.dp
  *     - [0] drawn-bullet은 이 자리를 decorator의 padding으로 냈다. 들여쓰기는 문단마다 다르게 줄 수 있어서 그쪽으로 바꿨다.
  * - 들여쓰기는 문단마다 따로 건다([bulletListOutputTransformation]). 불릿은 문단 첫 글자를 따라 그리므로 들여쓰기가 바뀌면 같이 움직인다.
  * - 문단 맨 앞이 `라벨: `이면 라벨을 알약으로 보여 준다([pillRangeOf]).
- *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 라벨과 `:` 뒤에 둥근 배경([pillColor])을 그린다.
+ *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 라벨과 `:` 뒤에 둥근 배경을 그린다.
  *     - 알약 문단에는 불릿을 그리지 않는다. 알약이 불릿 자리에서 시작해 구분자 역할을 한다.
- *     - 첫 줄 들여쓰기는 알약 왼쪽 안쪽 여백(`:` 한 글자 폭)이다. 알약 배경은 x = 0부터, 라벨 글자는 그 여백 뒤부터 시작한다.
- *     - 나머지 줄 들여쓰기는 일반 문단과 같다(불릿 폭). 넘친 줄이 다른 문단의 글자 시작선에 맞춰진다.
- *     - 알약 배경은 왼쪽으로 [pillOverflow]만큼 텍스트 영역 밖까지 넘칠 수 있다. 넘친 부분은 decorator나 호출부의 padding 위에 그려진다.
- *         - 배경만 넘는다. 글자는 `BasicTextField` 안쪽에서 잘리고, 넘친 부분은 터치되지 않는다.
- *         - 이 필드를 감싼 부모가 clip하면 거기서 잘린다.
+ *     - 첫 줄 들여쓰기는 알약 왼쪽 안쪽 여백(p)이다. 알약 배경은 x = 0부터, 라벨 글자는 그 여백 뒤부터 시작한다.
+ *     - 넘친 줄 들여쓰기(r)는 일반 문단 글자 시작선이나 알약 뒤 본문 시작선 중에서 고른다.
+ *     - 알약 배경은 텍스트 영역 왼쪽 밖까지 넘칠 수 있다. 글자는 `BasicTextField` 안쪽에서 잘리므로 배경만 넘는다.
+ *     - 색·p·r·넘침 폭은 [pillStyle]로 정한다.
  *     - `BasicTextField`는 `InlineTextContent`를 지원하지 않아 진짜 composable을 넣을 수 없다. 그래서 그린다.
  * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
  *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
@@ -77,6 +76,10 @@ private val PILL_VERTICAL_INSET = 2.dp
  * - [state]는 [rememberBulletListTextFieldState]로 만든 것이어야 한다. 맨 앞 sentinel을 전제로 동작하기 때문이다.
  * - 기본값도 `BasicTextField`와 같다. 테마 색(다크모드 등)이 필요하면 호출부가 [textStyle], [cursorBrush]로 넘긴다.
  * - [textStyle]의 `textIndent`는 무시된다. 문단마다 불릿 자리를 내는 들여쓰기로 덮어쓰기 때문이다.
+ *
+ * @param bulletIndent 일반 문단의 들여쓰기(g). 불릿은 이 자리의 오른쪽 끝(글자 바로 왼쪽)에 그린다.
+ *     - `Dp.Unspecified`면 불릿([BULLET]) 폭이다.
+ * @param pillStyle 알약 모양과 알약 문단의 들여쓰기(p, r).
  */
 @Composable
 internal fun BulletListTextField(
@@ -93,41 +96,57 @@ internal fun BulletListTextField(
     cursorBrush: Brush = SolidColor(Color.Black), // BasicTextFieldDefaults.CursorBrush와 같은 값 (그 객체는 private이라 직접 못 쓴다)
     decorator: TextFieldDecorator? = null,
     scrollState: ScrollState = rememberScrollState(),
-    pillColor: Color = Color.LightGray,
-    pillOverflow: Dp = 0.dp,
+    bulletIndent: Dp = Dp.Unspecified,
+    pillStyle: PillStyle = PillStyle(),
 ) {
     /** 불릿 한 개를 [textStyle]로 측정한 결과. 들여쓰기 폭과 그리기에 같이 쓴다. */
     val textMeasurer = rememberTextMeasurer()
     val bulletLayout = remember(textMeasurer, textStyle) { textMeasurer.measure(BULLET, textStyle) }
 
-    /**
-     * 일반 문단의 들여쓰기. 폭은 불릿 한 개의 폭이다.
-     *
-     * - `TextIndent`는 sp 단위만 받으므로, 측정한 px 폭을 sp로 바꿔 넣는다.
-     * - [textStyle]에도 기본값으로 넣는다. 문단별 스타일이 빠진 곳이 있어도 불릿 자리는 남는다.
-     */
-    val bulletIndent = with(LocalDensity.current) { bulletLayout.size.width.toSp() }
-    val defaultIndent = TextIndent(firstLine = bulletIndent, restLine = bulletIndent)
-    val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
+    val density = LocalDensity.current
 
     /**
-     * 알약 왼쪽 안쪽 여백. `:` 한 글자 폭이다.
+     * 일반 문단의 들여쓰기(g). 기본은 불릿 한 개의 폭이다.
      *
-     * - 오른쪽 안쪽 여백이 투명한 `:`라서, 같은 폭을 써 좌우를 맞춘다.
+     * - `TextIndent`는 sp 단위만 받으므로, px·dp 폭을 sp로 바꿔 넣는다.
+     * - [textStyle]에도 기본값으로 넣는다. 문단별 스타일이 빠진 곳이 있어도 불릿 자리는 남는다.
      */
-    val pillPadding = remember(textMeasurer, textStyle) { textMeasurer.measure(PILL_DELIMITER.take(1), textStyle).size.width }
-    val pillPaddingSp = with(LocalDensity.current) { pillPadding.toSp() }
+    val bulletIndentSp = with(density) {
+        if (bulletIndent == Dp.Unspecified) bulletLayout.size.width.toSp() else bulletIndent.toSp()
+    }
+    val defaultIndent = TextIndent(firstLine = bulletIndentSp, restLine = bulletIndentSp)
+    val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
+
+    /** 알약 왼쪽 안쪽 여백(p)의 px 폭. 기본은 `:` 한 글자 폭이다. */
+    val pillPadding = remember(textMeasurer, textStyle, pillStyle.startPadding, density) {
+        if (pillStyle.startPadding == Dp.Unspecified) {
+            textMeasurer.measure(PILL_DELIMITER.take(1), textStyle).size.width.toFloat()
+        } else {
+            with(density) { pillStyle.startPadding.toPx() }
+        }
+    }
 
     /**
      * 문단마다 들여쓰기를 거는 [bulletListOutputTransformation].
      *
-     * - 알약 문단은 첫 줄을 알약 왼쪽 여백만큼만 들여쓴다. 알약이 불릿 자리를 차지한다.
-     * - 나머지 문단과 알약 문단의 넘친 줄은 불릿 폭만큼 들여쓴다.
+     * - 알약 문단은 첫 줄을 알약 왼쪽 여백(p)만큼만 들여쓴다. 알약이 불릿 자리를 차지한다.
+     * - 알약 문단의 넘친 줄(r)은 [PillStyle.restLineIndent]를 따른다.
+     *     - [PillRestLineIndent.Pill]이면 `라벨: `을 [textStyle]로 미리 재서 p에 더한다. 들여쓰기는 layout 전에 정해야 해서 layout 결과를 쓸 수 없다.
+     * - 나머지 문단은 g만큼 들여쓴다.
      */
-    val outputTransformation = remember(defaultIndent, pillPaddingSp) {
-        val pillIndent = TextIndent(firstLine = pillPaddingSp, restLine = bulletIndent)
+    val outputTransformation = remember(defaultIndent, pillPadding, pillStyle.restLineIndent, textMeasurer, textStyle, density) {
+        val pillPaddingSp = with(density) { pillPadding.toSp() }
+        val pillIndent = TextIndent(firstLine = pillPaddingSp, restLine = bulletIndentSp)
         bulletListOutputTransformation { text, start, end ->
-            if (text.pillRangeOf(start, end) != null) pillIndent else defaultIndent
+            val pill = text.pillRangeOf(start, end)
+            when {
+                pill == null -> defaultIndent
+                pillStyle.restLineIndent == PillRestLineIndent.Bullet -> pillIndent
+                else -> {
+                    val pillWidth = textMeasurer.measure(text.substring(pill.labelStart, pill.delimiterEnd), textStyle).size.width
+                    TextIndent(firstLine = pillPaddingSp, restLine = with(density) { (pillPadding + pillWidth).toSp() })
+                }
+            }
         }
     }
 
@@ -179,12 +198,12 @@ internal fun BulletListTextField(
                         Modifier
                             .drawWithContent {
                                 /**
-                                 * 그림을 Box 영역으로 자른다. 좌우만 [pillOverflow]만큼 넓힌다.
+                                 * 그림을 Box 영역으로 자른다. 좌우만 알약 넘침 폭([PillStyle.overflow])만큼 넓힌다.
                                  *
                                  * - 위아래: 스크롤로 밀려난 불릿·알약이 영역 밖에 그려지지 않게 한다.
                                  * - 좌우: 알약 배경이 텍스트 영역 밖으로 넘칠 자리를 둔다.
                                  */
-                                val overflow = pillOverflow.toPx()
+                                val overflow = pillStyle.overflow.toPx()
                                 clipRect(left = -overflow, top = 0f, right = size.width + overflow, bottom = size.height) {
                                     this@drawWithContent.drawContent()
                                 }
@@ -197,7 +216,7 @@ internal fun BulletListTextField(
                                     } else {
                                         Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
                                     }
-                                    drawPills(layout, pillColor, pillPadding.toFloat(), pillOverflow.toPx(), scroll)
+                                    drawPills(layout, pillStyle.color, pillPadding, pillStyle.overflow.toPx(), scroll)
                                     drawSelection(layout, state.selection, selectionColor, newlineMarkWidth, scroll)
                                     drawBullets(layout, bulletLayout, scroll)
                                 }

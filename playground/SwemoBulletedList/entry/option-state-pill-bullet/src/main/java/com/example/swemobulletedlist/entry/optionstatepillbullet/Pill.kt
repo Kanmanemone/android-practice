@@ -1,5 +1,10 @@
 package com.example.swemobulletedlist.entry.optionstatepillbullet
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
 /** 알약 라벨과 본문 사이의 구분자. 문단 맨 앞이 `라벨: `이면 그 문단은 알약 문단이다. */
 internal const val PILL_DELIMITER = ": "
 
@@ -33,4 +38,32 @@ internal fun CharSequence.pillRangeOf(start: Int, end: Int): PillRange? {
     if (colon < 0 || colon >= end || colon == labelStart) return null
     if (colon + PILL_DELIMITER.length > end || !regionMatches(colon, PILL_DELIMITER, 0, PILL_DELIMITER.length)) return null
     return PillRange(labelStart, colon)
+}
+
+/**
+ * 알약 모양과 알약 문단의 들여쓰기 설정.
+ *
+ * @property color 알약 배경색.
+ * @property startPadding 알약 왼쪽 안쪽 여백(p). 알약 문단 첫 줄의 들여쓰기이기도 하다.
+ *     - `Dp.Unspecified`면 `:` 한 글자 폭이다. 오른쪽 안쪽 여백이 투명한 `:`라 좌우가 같아진다.
+ * @property restLineIndent 알약 문단에서 넘친 줄의 들여쓰기(r).
+ * @property overflow 알약 배경이 텍스트 영역 왼쪽 밖으로 넘치는 폭.
+ *     - 넘친 부분은 decorator나 호출부의 padding 위에 그려진다. 배경만 넘고, 터치되지 않는다.
+ *     - 이 필드를 감싼 부모가 clip하면 거기서 잘린다.
+ */
+@Immutable
+internal data class PillStyle(
+    val color: Color = Color.LightGray,
+    val startPadding: Dp = Dp.Unspecified,
+    val restLineIndent: PillRestLineIndent = PillRestLineIndent.Bullet,
+    val overflow: Dp = 0.dp,
+)
+
+/** 알약 문단에서 넘친 줄을 어디에 맞출지. */
+internal enum class PillRestLineIndent {
+    /** 일반 문단의 글자 시작선(g). 문단 사이의 왼쪽 선이 맞는다. */
+    Bullet,
+
+    /** 알약 뒤 본문의 시작선. 알약이 문단 왼쪽에 단독으로 선다. 알약 폭은 layout 전에 따로 잰다. */
+    Pill,
 }
