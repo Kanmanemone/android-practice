@@ -50,15 +50,17 @@ private const val NEWLINE_MARK = " "
  *     - 화면 텍스트가 저장값과 똑같아서, 커서 위치를 따로 보정할 필요가 없다.
  *     - 첫 줄(`firstLine`)과 넘친 줄(`restLine`)을 같은 폭으로 들여쓰므로, 긴 줄이 넘어가도 글자 시작선에 맞춰진다.
  *     - [0] drawn-bullet은 이 자리를 decorator의 padding으로 냈다. 들여쓰기는 문단마다 다르게 줄 수 있어서 그쪽으로 바꿨다.
+ * - 들여쓰기는 문단마다 따로 건다([bulletListOutputTransformation]). 불릿은 문단 첫 글자를 따라 그리므로 들여쓰기가 바뀌면 같이 움직인다.
+ *     - 지금은 확인용 규칙 하나만 있다. `>`로 시작하는 문단은 들여쓰기가 2배다.
  * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
  *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
  *     - 칠하는 색은 호출부의 `LocalTextSelectionColors`에서 가져온다. 테마의 선택 색이 그대로 쓰인다.
  * - 파라미터는 `BasicTextField(state)`와 같다. 단, `inputTransformation`과 `outputTransformation`은 없다.
  *     - `inputTransformation`은 sentinel 규칙(`BulletListTransformation.kt`)이 차지한다.
- *     - `outputTransformation`은 마지막 빈 문단의 들여쓰기 보정(`BulletListTransformation.kt`)이 차지한다.
+ *     - `outputTransformation`은 문단별 들여쓰기(`BulletListTransformation.kt`)가 차지한다.
  * - [state]는 [rememberBulletListTextFieldState]로 만든 것이어야 한다. 맨 앞 sentinel을 전제로 동작하기 때문이다.
  * - 기본값도 `BasicTextField`와 같다. 테마 색(다크모드 등)이 필요하면 호출부가 [textStyle], [cursorBrush]로 넘긴다.
- * - [textStyle]의 `textIndent`는 무시된다. 불릿 자리를 내는 들여쓰기로 덮어쓰기 때문이다.
+ * - [textStyle]의 `textIndent`는 무시된다. 문단마다 불릿 자리를 내는 들여쓰기로 덮어쓰기 때문이다.
  */
 @Composable
 internal fun BulletListTextField(
@@ -81,14 +83,25 @@ internal fun BulletListTextField(
     val bulletLayout = remember(textMeasurer, textStyle) { textMeasurer.measure(BULLET, textStyle) }
 
     /**
-     * 모든 문단에 거는 들여쓰기. 폭은 불릿 한 개의 폭이다.
+     * 일반 문단의 들여쓰기. 폭은 불릿 한 개의 폭이다.
      *
      * - `TextIndent`는 sp 단위만 받으므로, 측정한 px 폭을 sp로 바꿔 넣는다.
-     * - 문단마다 따로 걸지 않고 [textStyle]에 기본값으로 넣는다. 텍스트 끝의 빈 문단까지 빠짐없이 적용된다.
+     * - [textStyle]에도 기본값으로 넣는다. 문단별 스타일이 빠진 곳이 있어도 불릿 자리는 남는다.
      */
     val bulletIndent = with(LocalDensity.current) { bulletLayout.size.width.toSp() }
-    val indentedTextStyle = remember(textStyle, bulletIndent) {
-        textStyle.copy(textIndent = TextIndent(firstLine = bulletIndent, restLine = bulletIndent))
+    val defaultIndent = TextIndent(firstLine = bulletIndent, restLine = bulletIndent)
+    val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
+
+    /**
+     * 문단마다 들여쓰기를 거는 [bulletListOutputTransformation].
+     *
+     * - 확인용 규칙: `>`로 시작하는 문단은 들여쓰기가 2배다.
+     */
+    val outputTransformation = remember(bulletIndent) {
+        val quoteIndent = TextIndent(firstLine = bulletIndent * 2, restLine = bulletIndent * 2)
+        bulletListOutputTransformation { text, start, end ->
+            if (text.paragraphFirstChar(start, end) == '>') quoteIndent else defaultIndent
+        }
     }
 
     /** 문단 끝 `\n`까지 선택했을 때 줄 끝에 덧칠하는 폭. */
@@ -114,7 +127,7 @@ internal fun BulletListTextField(
             enabled = enabled,
             readOnly = readOnly,
             inputTransformation = BulletListInputTransformation,
-            outputTransformation = BulletListOutputTransformation,
+            outputTransformation = outputTransformation,
             textStyle = indentedTextStyle,
             keyboardOptions = keyboardOptions,
             onKeyboardAction = onKeyboardAction,
@@ -166,9 +179,9 @@ internal fun BulletListTextField(
 }
 
 /**
- * 각 줄(문단)의 시작 위치에 불릿을 그린다.
+ * 각 문단의 시작 위치에 불릿을 그린다.
  *
- * - 줄의 시작은 텍스트 맨 앞, 그리고 `\n` 바로 뒤다.
+ * - 문단은 layout에 걸린 문단 스타일 범위([paragraphRanges])로 찾는다. 화면용 텍스트에는 `\n`이 없기 때문이다.
  * - 줄바꿈으로 넘어간 줄에는 그리지 않는다. 불릿은 항목마다 하나다.
  * - 불릿은 문단 첫 글자 바로 왼쪽(들여쓰기 자리)에, 그 줄 상자(lineTop ~ lineBottom)의 세로 가운데에 맞춰 그린다.
  *     - 가로 위치는 문단 시작 offset의 커서 x에서 불릿 폭을 뺀 값이다. 커서 x에는 들여쓰기가 반영되어 있어, 들여쓰기 폭이 바뀌어도 불릿이 따라간다.
@@ -181,20 +194,14 @@ private fun DrawScope.drawBullets(
     bulletLayout: TextLayoutResult,
     scroll: Offset,
 ) {
-    val text = layout.layoutInput.text
-    var lineStart = 0
-    while (true) {
-        val line = layout.getLineForOffset(lineStart) // lineStart가 속한 줄 번호
+    for (paragraph in layout.paragraphRanges) {
+        val line = layout.getLineForOffset(paragraph.start) // 문단 첫 줄 번호
         val lineHeight = layout.getLineBottom(line) - layout.getLineTop(line) // 줄 상자의 아래쪽 Y - 위쪽 Y
 
         val centeringOffset = (lineHeight - bulletLayout.size.height) / 2
         val topOffset = layout.getLineTop(line) + centeringOffset // 불릿 상자를 줄 상자 가운데에 놓는다
-        val leftOffset = layout.getHorizontalPosition(lineStart, usePrimaryDirection = true) - bulletLayout.size.width // 문단 첫 글자 바로 왼쪽
+        val leftOffset = layout.getHorizontalPosition(paragraph.start, usePrimaryDirection = true) - bulletLayout.size.width // 문단 첫 글자 바로 왼쪽
         drawText(bulletLayout, topLeft = Offset(leftOffset, topOffset) + scroll)
-
-        val newline = text.indexOf('\n', startIndex = lineStart) // 다음 개행 문자의 인덱스. 없으면 -1
-        if (newline < 0) break
-        lineStart = newline + 1 // 개행 문자 바로 뒤에서 다음 줄 시작
     }
 }
 
@@ -206,7 +213,7 @@ private fun DrawScope.drawBullets(
  *     - 끝 x: 마지막 줄이면 선택 끝 offset의 커서 x, 아니면 `getLineRight`(줄 끝 공백 제외).
  * - 줄 첫 글자의 커서 x에는 들여쓰기가 반영되어 있어, 불릿 자리는 칠하지 않는다.
  *     - `getLineLeft`는 쓰지 않는다. Android 레이아웃은 왼쪽 정렬 줄에서 들여쓰기와 상관없이 0을 돌려준다.
- * - 선택이 문단 끝 `\n`을 넘어가면 그 줄 끝에 [newlineMarkWidth]만큼 더 칠한다. 빈 문단도 선택된 게 보인다.
+ * - 선택이 문단 끝을 넘어가면 그 줄 끝에 [newlineMarkWidth]만큼 더 칠한다. 빈 문단도 선택된 게 보인다.
  * - 세로 범위는 줄 상자(lineTop ~ lineBottom)다.
  * - 왼쪽에서 오른쪽으로 쓰는 글(LTR)만 고려한다.
  */
@@ -218,7 +225,7 @@ private fun DrawScope.drawSelection(
     scroll: Offset,
 ) {
     if (selection.collapsed) return
-    val text = layout.layoutInput.text
+    val paragraphEnds = layout.paragraphRanges.mapTo(HashSet()) { it.end }
     val firstLine = layout.getLineForOffset(selection.min)
     val lastLine = layout.getLineForOffset(selection.max)
     for (line in firstLine..lastLine) {
@@ -230,9 +237,13 @@ private fun DrawScope.drawSelection(
         val right = if (line == lastLine) {
             layout.getHorizontalPosition(selection.max, usePrimaryDirection = true)
         } else {
-            val lineEnd = layout.getLineEnd(line) // `\n`이 있으면 그 뒤 offset
-            val endsParagraph = lineEnd > 0 && text[lineEnd - 1] == '\n'
-            layout.getLineRight(line) + if (endsParagraph) newlineMarkWidth else 0f
+            val lineEnd = layout.getLineEnd(line) // 문단을 끝내는 줄이면 `\n` 자리 바로 뒤
+            if (lineEnd in paragraphEnds) {
+                /** 줄 끝 공백이 `getLineRight`에 들어가는지는 Android 버전마다 달라, `\n` 자리 x를 기준으로 덧칠한다. */
+                maxOf(layout.getLineRight(line), layout.getHorizontalPosition(lineEnd - 1, usePrimaryDirection = true) + newlineMarkWidth)
+            } else {
+                layout.getLineRight(line)
+            }
         }
         if (right <= left) continue
 
@@ -244,3 +255,12 @@ private fun DrawScope.drawSelection(
         )
     }
 }
+
+/**
+ * layout에 걸린 문단 스타일 범위. 곧 문단 목록이다.
+ *
+ * - [bulletListOutputTransformation]이 모든 문단에 빠짐없이 걸기 때문이다.
+ * - 저장값이 아니라 layout에서 읽어, 그리는 시점의 layout과 어긋나지 않는다.
+ */
+private val TextLayoutResult.paragraphRanges
+    get() = layoutInput.text.paragraphStyles

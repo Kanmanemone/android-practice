@@ -9,7 +9,9 @@ import androidx.compose.foundation.text.input.insert
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.then
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.style.TextIndent
 
 /**
  * 텍스트 맨 앞에 항상 하나 깔아두는 보이지 않는 문자(zero-width space, U+200B).
@@ -18,6 +20,17 @@ import androidx.compose.ui.text.TextRange
  * - 폭이 0인 문자라 화면에 그대로 둬도 보이지 않는다. 그래서 OutputTransformation으로 가릴 필요가 없다.
  */
 private const val SENTINEL = '​'
+
+/**
+ * 화면용 텍스트에서 `\n` 대신 넣는 문자.
+ *
+ * - 문단 나눔은 [ParagraphStyle] 범위 경계가 맡는다. `\n`을 그대로 두면 문단마다 빈 줄이 하나씩 더 생긴다.
+ * - 글자 수가 같아 화면 offset이 저장값과 똑같다.
+ * - 공백이라 단어 경계가 된다. 더블탭 단어 선택이 다음 문단이나 `\n`까지 넘어가지 않는다.
+ *     - 폭 0 문자(U+200B)는 단어 경계 규칙에서 앞 글자에 붙어, 단어 선택에 `\n`이 딸려 들어간다.
+ * - 줄 끝 공백이라 줄 넘침에는 영향이 없다.
+ */
+private const val PARAGRAPH_BREAK = " "
 
 /**
  * 불릿 리스트용 [TextFieldState]를 만든다.
@@ -43,18 +56,64 @@ internal val BulletListInputTransformation: InputTransformation by lazy { // 아
 }
 
 /**
- * 불릿 리스트의 [OutputTransformation]. 화면에 보일 텍스트만 고치고, 저장값은 건드리지 않는다.
+ * 불릿 리스트의 [OutputTransformation]을 만든다. 화면에 보일 텍스트만 고치고, 저장값은 건드리지 않는다.
  *
+ * - 문단마다 [indentOf]가 돌려준 들여쓰기로 [ParagraphStyle]을 건다.
+ *     - 범위는 문단 시작부터 그 문단을 끝내는 `\n`까지다. 모든 문단에 빠짐없이 건다.
+ *     - 문단을 끝내는 `\n`은 [PARAGRAPH_BREAK]로 바꾼다. 문단 나눔은 스타일 범위 경계가 맡는다.
+ *     - `\n`을 그대로 두면, 스타일 범위가 갈리는 곳마다 Compose가 문단을 따로 떼어 레이아웃해 빈 줄이 하나 더 생긴다.
  * - 텍스트가 `\n`으로 끝나면, 화면용 텍스트 끝에 폭 0 문자([SENTINEL]과 같은 문자)를 하나 붙인다.
- * - Android 텍스트 레이아웃은 마지막 `\n` 뒤의 빈 줄에 문단 스타일(`textIndent`)을 걸지 않는다. 그 줄이 스타일 범위 바깥이기 때문이다.
- *     - 그러면 그 줄만 들여쓰기가 빠져 커서가 왼쪽 끝에 붙고, 불릿은 왼쪽 밖에 그려져 보이지 않는다.
- *     - 문자를 하나 붙이면 그 줄이 빈 줄이 아니게 되어 들여쓰기가 걸린다.
- * - 가운데의 빈 문단은 스타일 범위 안이라 문제없다. 그래서 끝에만 붙인다.
+ *     - 그러지 않으면 마지막 빈 문단은 글자가 없어 스타일 범위가 비고, 들여쓰기가 걸리지 않는다.
+ *     - 그러면 그 줄만 커서가 왼쪽 끝에 붙고, 불릿은 왼쪽 밖에 그려져 보이지 않는다.
+ * - 판단은 텍스트 내용으로만 한다. layout보다 먼저 돌기 때문이다.
+ *
+ * @param indentOf 문단 범위(`start` ~ `end`, `end`는 `\n` 직전)를 받아 그 문단의 들여쓰기를 돌려준다.
  */
-internal val BulletListOutputTransformation = OutputTransformation {
+internal fun bulletListOutputTransformation(
+    indentOf: (text: CharSequence, start: Int, end: Int) -> TextIndent,
+) = OutputTransformation {
     if (length > 0 && charAt(length - 1) == '\n') {
         append(SENTINEL)
     }
+
+    val text = toString() // 아래에서 `\n`을 바꾸기 전의 텍스트
+    forEachParagraph(text) { _, end ->
+        if (end < text.length) {
+            replace(end, end + 1, PARAGRAPH_BREAK) // 글자 수가 같아 offset이 밀리지 않는다
+        }
+    }
+    forEachParagraph(text) { start, end ->
+        val styleEnd = if (end < text.length) end + 1 else end // 문단을 끝내는 `\n` 자리까지
+        addStyle(ParagraphStyle(textIndent = indentOf(text, start, end)), start, styleEnd)
+    }
+}
+
+/**
+ * [text]를 `\n` 기준 문단으로 나눠 앞에서부터 [block]을 부른다.
+ *
+ * - `start`는 문단 첫 글자, `end`는 그 문단을 끝내는 `\n`의 위치다. 마지막 문단은 `end`가 텍스트 길이다.
+ * - 빈 문단은 `start == end`다.
+ * - Compose는 `\n` 문단 목록을 공개하지 않아 직접 나눈다.
+ */
+internal inline fun forEachParagraph(text: CharSequence, block: (start: Int, end: Int) -> Unit) {
+    var start = 0
+    while (true) {
+        val newline = text.indexOf('\n', startIndex = start) // 없으면 -1
+        val end = if (newline < 0) text.length else newline
+        block(start, end)
+        if (newline < 0) break
+        start = newline + 1
+    }
+}
+
+/**
+ * 문단의 첫 글자. 빈 문단이면 `null`이다.
+ *
+ * - 첫 문단은 맨 앞 [SENTINEL]을 건너뛰고 본다.
+ */
+internal fun CharSequence.paragraphFirstChar(start: Int, end: Int): Char? {
+    val contentStart = if (start == 0 && length > 0 && this[0] == SENTINEL) 1 else start
+    return if (contentStart < end) this[contentStart] else null
 }
 
 /* ───────────── Input 단계 ───────────── */
