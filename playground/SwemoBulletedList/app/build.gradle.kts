@@ -44,6 +44,7 @@ dependencies {
     implementation(project(":core:entry-api"))
     implementation(project(":entry:option-state-drawn-bullet"))
     implementation(project(":entry:option-state-text-indent-bullet"))
+    implementation(project(":entry:option-state-pill-bullet"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
