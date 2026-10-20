@@ -21,7 +21,9 @@ object OptionStatePillBulletKey : MyNavKey {
 
          알약 문단은 Bullet을 그리지 않고, 알약이 Bullet 자리에서 시작한다. 넘친 줄은 일반 문단의 글자 시작선에 맞춘다.
 
-         (작업 중) 커서가 아직 알약 안으로 들어갈 수 있다.
+         커서는 알약 안에 들어가지 않는다. 알약 뒤에서 Backspace를 누르면 공백이 지워져 알약이 풀린다.
+
+         (작업 중) 알약 배경이 아직 decorator 영역을 넘지 못한다.
     """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionStatePillBulletScreen() }
 }
