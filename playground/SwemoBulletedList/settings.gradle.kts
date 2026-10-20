@@ -26,3 +26,4 @@ rootProject.name = "SwemoBulletedList"
 include(":app")
 include(":core:entry-api")
 include(":entry:option-state-drawn-bullet")
+include(":entry:option-state-text-indent-bullet")
