@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -35,12 +37,16 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 
 /** 각 줄 앞에 그리는 Bullet (글머리 기호). 뒤 간격까지 포함한다. */
 private const val BULLET = "•  "
 
 /** 선택이 문단 끝 `\n`을 넘어갈 때 그 줄 끝에 덧칠하는 폭의 기준 글자. 빈 문단도 선택된 게 보이게 한다. */
 private const val NEWLINE_MARK = " "
+
+/** 알약 배경을 줄 상자보다 위아래로 줄이는 폭. 위아래 줄의 알약끼리 붙어 보이지 않게 한다. */
+private val PILL_VERTICAL_INSET = 2.dp
 
 /**
  * 단일 [BasicTextField] 하나로 그리는 불릿 리스트 입력 필드.
@@ -51,7 +57,9 @@ private const val NEWLINE_MARK = " "
  *     - 첫 줄(`firstLine`)과 넘친 줄(`restLine`)을 같은 폭으로 들여쓰므로, 긴 줄이 넘어가도 글자 시작선에 맞춰진다.
  *     - [0] drawn-bullet은 이 자리를 decorator의 padding으로 냈다. 들여쓰기는 문단마다 다르게 줄 수 있어서 그쪽으로 바꿨다.
  * - 들여쓰기는 문단마다 따로 건다([bulletListOutputTransformation]). 불릿은 문단 첫 글자를 따라 그리므로 들여쓰기가 바뀌면 같이 움직인다.
- *     - 지금은 확인용 규칙 하나만 있다. `>`로 시작하는 문단은 들여쓰기가 2배다.
+ * - 문단 맨 앞이 `라벨: `이면 라벨을 알약으로 보여 준다([pillRangeOf]).
+ *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 라벨과 `:` 뒤에 둥근 배경([pillColor])을 그린다.
+ *     - `BasicTextField`는 `InlineTextContent`를 지원하지 않아 진짜 composable을 넣을 수 없다. 그래서 그린다.
  * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
  *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
  *     - 칠하는 색은 호출부의 `LocalTextSelectionColors`에서 가져온다. 테마의 선택 색이 그대로 쓰인다.
@@ -77,6 +85,7 @@ internal fun BulletListTextField(
     cursorBrush: Brush = SolidColor(Color.Black), // BasicTextFieldDefaults.CursorBrush와 같은 값 (그 객체는 private이라 직접 못 쓴다)
     decorator: TextFieldDecorator? = null,
     scrollState: ScrollState = rememberScrollState(),
+    pillColor: Color = Color.LightGray,
 ) {
     /** 불릿 한 개를 [textStyle]로 측정한 결과. 들여쓰기 폭과 그리기에 같이 쓴다. */
     val textMeasurer = rememberTextMeasurer()
@@ -92,16 +101,9 @@ internal fun BulletListTextField(
     val defaultIndent = TextIndent(firstLine = bulletIndent, restLine = bulletIndent)
     val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
 
-    /**
-     * 문단마다 들여쓰기를 거는 [bulletListOutputTransformation].
-     *
-     * - 확인용 규칙: `>`로 시작하는 문단은 들여쓰기가 2배다.
-     */
-    val outputTransformation = remember(bulletIndent) {
-        val quoteIndent = TextIndent(firstLine = bulletIndent * 2, restLine = bulletIndent * 2)
-        bulletListOutputTransformation { text, start, end ->
-            if (text.paragraphFirstChar(start, end) == '>') quoteIndent else defaultIndent
-        }
+    /** 문단마다 들여쓰기를 거는 [bulletListOutputTransformation]. */
+    val outputTransformation = remember(defaultIndent) {
+        bulletListOutputTransformation { _, _, _ -> defaultIndent }
     }
 
     /** 문단 끝 `\n`까지 선택했을 때 줄 끝에 덧칠하는 폭. */
@@ -140,7 +142,9 @@ internal fun BulletListTextField(
             cursorBrush = cursorBrush,
             decorator = { innerTextField ->
                 /**
-                 * 텍스트 영역 뒤에 선택 하이라이트와 불릿을 그린다.
+                 * 텍스트 영역 뒤에 알약 배경, 선택 하이라이트, 불릿을 차례로 그린다.
+                 *
+                 * - 선택 색은 반투명이라 알약 배경 위에 칠한다.
                  *
                  * - 호출부가 decorator를 넘겼다면, 이 Box가 그 decorator의 innerTextField 자리에 들어간다. 즉 불릿은 decorator 장식보다 안쪽이다.
                  * - Box와 텍스트 레이아웃의 좌표가 같다. 들여쓰기는 텍스트 레이아웃 안에서 일어나므로, 불릿 위치도 레이아웃 좌표로 바로 구한다.
@@ -157,6 +161,7 @@ internal fun BulletListTextField(
                                     } else {
                                         Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
                                     }
+                                    drawPills(layout, pillColor, scroll)
                                     drawSelection(layout, state.selection, selectionColor, newlineMarkWidth, scroll)
                                     drawBullets(layout, bulletLayout, scroll)
                                 }
@@ -257,6 +262,51 @@ private fun DrawScope.drawSelection(
 }
 
 /**
+ * 알약 문단마다 라벨과 `:` 뒤에 둥근 배경을 그린다.
+ *
+ * - 알약은 layout의 화면 텍스트에서 [pillRangeOf]로 다시 찾는다. 저장값과 offset이 같아 결과도 같다.
+ * - 가로: 라벨 첫 글자의 커서 x에서 `:` 폭만큼 왼쪽부터, `:` 뒤까지. 투명한 `:`가 오른쪽 안쪽 여백이고, 왼쪽도 같은 폭을 둔다.
+ * - 세로: 줄 상자에서 위아래로 [PILL_VERTICAL_INSET]만큼 줄인 높이. 모서리는 반원이다.
+ * - 라벨이 줄을 넘치면 줄마다 따로 그린다.
+ */
+private fun DrawScope.drawPills(
+    layout: TextLayoutResult,
+    color: Color,
+    scroll: Offset,
+) {
+    val text = layout.layoutInput.text
+    val inset = PILL_VERTICAL_INSET.toPx()
+    for (paragraph in layout.paragraphRanges) {
+        val pill = text.pillRangeOf(paragraph.start, layout.paragraphContentEnd(paragraph)) ?: continue
+        val colonWidth = layout.getHorizontalPosition(pill.backgroundEnd, usePrimaryDirection = true) -
+            layout.getHorizontalPosition(pill.labelEnd, usePrimaryDirection = true)
+
+        val firstLine = layout.getLineForOffset(pill.labelStart)
+        val lastLine = layout.getLineForOffset(pill.labelEnd) // `:`가 있는 줄
+        for (line in firstLine..lastLine) {
+            val left = if (line == firstLine) {
+                layout.getHorizontalPosition(pill.labelStart, usePrimaryDirection = true) - colonWidth
+            } else {
+                layout.getHorizontalPosition(layout.getLineStart(line), usePrimaryDirection = true)
+            }
+            val right = if (line == lastLine) {
+                layout.getHorizontalPosition(pill.labelEnd, usePrimaryDirection = true) + colonWidth
+            } else {
+                layout.getLineRight(line)
+            }
+            val top = layout.getLineTop(line) + inset
+            val height = layout.getLineBottom(line) - inset - top
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(left, top) + scroll,
+                size = Size(right - left, height),
+                cornerRadius = CornerRadius(height / 2),
+            )
+        }
+    }
+}
+
+/**
  * layout에 걸린 문단 스타일 범위. 곧 문단 목록이다.
  *
  * - [bulletListOutputTransformation]이 모든 문단에 빠짐없이 걸기 때문이다.
@@ -264,3 +314,11 @@ private fun DrawScope.drawSelection(
  */
 private val TextLayoutResult.paragraphRanges
     get() = layoutInput.text.paragraphStyles
+
+/**
+ * 문단 스타일 범위에서 문단 글자가 끝나는 위치.
+ *
+ * - 마지막 문단이 아니면 범위 끝에 `\n` 대신 넣은 문자가 있어 하나 뺀다.
+ */
+private fun TextLayoutResult.paragraphContentEnd(paragraph: AnnotatedString.Range<*>): Int =
+    if (paragraph.end < layoutInput.text.length) paragraph.end - 1 else paragraph.end

@@ -46,6 +46,7 @@ fun OptionStatePillBulletScreen(
             .padding(16.dp),
         textStyle = textStyle,
         cursorBrush = SolidColor(textStyle.color), // 기본값(검정)은 다크모드에서 안 보인다
+        pillColor = MaterialTheme.colorScheme.secondaryContainer,
     )
 }
 
@@ -58,5 +59,5 @@ private fun OptionStatePillBulletScreenEmptyPreview() {
 @Preview(name = "항목 여러 개", showBackground = true)
 @Composable
 private fun OptionStatePillBulletScreenFilledPreview() {
-    OptionStatePillBulletScreen(initialText = "우유 사기\n계란 사기\n빵 사기")
+    OptionStatePillBulletScreen(initialText = "우유 사기\n사과: 빨갛고 단단한 것으로\n빵 사기")
 }
