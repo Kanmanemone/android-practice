@@ -59,6 +59,9 @@ private val PILL_VERTICAL_INSET = 2.dp
  * - 들여쓰기는 문단마다 따로 건다([bulletListOutputTransformation]). 불릿은 문단 첫 글자를 따라 그리므로 들여쓰기가 바뀌면 같이 움직인다.
  * - 문단 맨 앞이 `라벨: `이면 라벨을 알약으로 보여 준다([pillRangeOf]).
  *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 라벨과 `:` 뒤에 둥근 배경([pillColor])을 그린다.
+ *     - 알약 문단에는 불릿을 그리지 않는다. 알약이 불릿 자리에서 시작해 구분자 역할을 한다.
+ *     - 첫 줄 들여쓰기는 알약 왼쪽 안쪽 여백(`:` 한 글자 폭)이다. 알약 배경은 x = 0부터, 라벨 글자는 그 여백 뒤부터 시작한다.
+ *     - 나머지 줄 들여쓰기는 일반 문단과 같다(불릿 폭). 넘친 줄이 다른 문단의 글자 시작선에 맞춰진다.
  *     - `BasicTextField`는 `InlineTextContent`를 지원하지 않아 진짜 composable을 넣을 수 없다. 그래서 그린다.
  * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
  *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
@@ -101,9 +104,25 @@ internal fun BulletListTextField(
     val defaultIndent = TextIndent(firstLine = bulletIndent, restLine = bulletIndent)
     val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
 
-    /** 문단마다 들여쓰기를 거는 [bulletListOutputTransformation]. */
-    val outputTransformation = remember(defaultIndent) {
-        bulletListOutputTransformation { _, _, _ -> defaultIndent }
+    /**
+     * 알약 왼쪽 안쪽 여백. `:` 한 글자 폭이다.
+     *
+     * - 오른쪽 안쪽 여백이 투명한 `:`라서, 같은 폭을 써 좌우를 맞춘다.
+     */
+    val pillPadding = remember(textMeasurer, textStyle) { textMeasurer.measure(PILL_DELIMITER.take(1), textStyle).size.width }
+    val pillPaddingSp = with(LocalDensity.current) { pillPadding.toSp() }
+
+    /**
+     * 문단마다 들여쓰기를 거는 [bulletListOutputTransformation].
+     *
+     * - 알약 문단은 첫 줄을 알약 왼쪽 여백만큼만 들여쓴다. 알약이 불릿 자리를 차지한다.
+     * - 나머지 문단과 알약 문단의 넘친 줄은 불릿 폭만큼 들여쓴다.
+     */
+    val outputTransformation = remember(defaultIndent, pillPaddingSp) {
+        val pillIndent = TextIndent(firstLine = pillPaddingSp, restLine = bulletIndent)
+        bulletListOutputTransformation { text, start, end ->
+            if (text.pillRangeOf(start, end) != null) pillIndent else defaultIndent
+        }
     }
 
     /** 문단 끝 `\n`까지 선택했을 때 줄 끝에 덧칠하는 폭. */
@@ -161,7 +180,7 @@ internal fun BulletListTextField(
                                     } else {
                                         Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
                                     }
-                                    drawPills(layout, pillColor, scroll)
+                                    drawPills(layout, pillColor, pillPadding.toFloat(), scroll)
                                     drawSelection(layout, state.selection, selectionColor, newlineMarkWidth, scroll)
                                     drawBullets(layout, bulletLayout, scroll)
                                 }
@@ -188,6 +207,7 @@ internal fun BulletListTextField(
  *
  * - 문단은 layout에 걸린 문단 스타일 범위([paragraphRanges])로 찾는다. 화면용 텍스트에는 `\n`이 없기 때문이다.
  * - 줄바꿈으로 넘어간 줄에는 그리지 않는다. 불릿은 항목마다 하나다.
+ * - 알약 문단에는 그리지 않는다. 알약이 불릿 자리를 차지한다.
  * - 불릿은 문단 첫 글자 바로 왼쪽(들여쓰기 자리)에, 그 줄 상자(lineTop ~ lineBottom)의 세로 가운데에 맞춰 그린다.
  *     - 가로 위치는 문단 시작 offset의 커서 x에서 불릿 폭을 뺀 값이다. 커서 x에는 들여쓰기가 반영되어 있어, 들여쓰기 폭이 바뀌어도 불릿이 따라간다.
  *     - 들여쓰기 폭을 px → sp → px로 바꾸며 생기는 반올림 오차도 여기서 흡수된다.
@@ -199,7 +219,10 @@ private fun DrawScope.drawBullets(
     bulletLayout: TextLayoutResult,
     scroll: Offset,
 ) {
+    val text = layout.layoutInput.text
     for (paragraph in layout.paragraphRanges) {
+        if (text.pillRangeOf(paragraph.start, layout.paragraphContentEnd(paragraph)) != null) continue
+
         val line = layout.getLineForOffset(paragraph.start) // 문단 첫 줄 번호
         val lineHeight = layout.getLineBottom(line) - layout.getLineTop(line) // 줄 상자의 아래쪽 Y - 위쪽 Y
 
@@ -265,32 +288,32 @@ private fun DrawScope.drawSelection(
  * 알약 문단마다 라벨과 `:` 뒤에 둥근 배경을 그린다.
  *
  * - 알약은 layout의 화면 텍스트에서 [pillRangeOf]로 다시 찾는다. 저장값과 offset이 같아 결과도 같다.
- * - 가로: 라벨 첫 글자의 커서 x에서 `:` 폭만큼 왼쪽부터, `:` 뒤까지. 투명한 `:`가 오른쪽 안쪽 여백이고, 왼쪽도 같은 폭을 둔다.
+ * - 가로: 라벨 첫 글자의 커서 x에서 [padding]만큼 왼쪽부터, `:` 뒤까지. 투명한 `:`가 오른쪽 안쪽 여백이다.
+ *     - 알약 문단의 첫 줄 들여쓰기가 [padding]이라, 왼쪽 끝은 x = 0(불릿 자리 시작)이다.
  * - 세로: 줄 상자에서 위아래로 [PILL_VERTICAL_INSET]만큼 줄인 높이. 모서리는 반원이다.
  * - 라벨이 줄을 넘치면 줄마다 따로 그린다.
  */
 private fun DrawScope.drawPills(
     layout: TextLayoutResult,
     color: Color,
+    padding: Float,
     scroll: Offset,
 ) {
     val text = layout.layoutInput.text
     val inset = PILL_VERTICAL_INSET.toPx()
     for (paragraph in layout.paragraphRanges) {
         val pill = text.pillRangeOf(paragraph.start, layout.paragraphContentEnd(paragraph)) ?: continue
-        val colonWidth = layout.getHorizontalPosition(pill.backgroundEnd, usePrimaryDirection = true) -
-            layout.getHorizontalPosition(pill.labelEnd, usePrimaryDirection = true)
 
         val firstLine = layout.getLineForOffset(pill.labelStart)
         val lastLine = layout.getLineForOffset(pill.labelEnd) // `:`가 있는 줄
         for (line in firstLine..lastLine) {
             val left = if (line == firstLine) {
-                layout.getHorizontalPosition(pill.labelStart, usePrimaryDirection = true) - colonWidth
+                layout.getHorizontalPosition(pill.labelStart, usePrimaryDirection = true) - padding
             } else {
                 layout.getHorizontalPosition(layout.getLineStart(line), usePrimaryDirection = true)
             }
             val right = if (line == lastLine) {
-                layout.getHorizontalPosition(pill.labelEnd, usePrimaryDirection = true) + colonWidth
+                layout.getHorizontalPosition(pill.backgroundEnd, usePrimaryDirection = true)
             } else {
                 layout.getLineRight(line)
             }

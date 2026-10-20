@@ -19,7 +19,9 @@ object OptionStatePillBulletKey : MyNavKey {
 
          알약은 저장하지 않고 텍스트에서 매번 찾는다. ': '를 치는 순간 알약이 생기고, 그 공백을 지우면 풀린다.
 
-         (작업 중) 아직 Bullet이 알약 옆에 남아 있다.
+         알약 문단은 Bullet을 그리지 않고, 알약이 Bullet 자리에서 시작한다. 넘친 줄은 일반 문단의 글자 시작선에 맞춘다.
+
+         (작업 중) 커서가 아직 알약 안으로 들어갈 수 있다.
     """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionStatePillBulletScreen() }
 }
