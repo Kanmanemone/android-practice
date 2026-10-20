@@ -1,6 +1,7 @@
 package com.example.swemobulletedlist.entry.optionstatetextindentbullet
 
 import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
@@ -39,6 +40,21 @@ internal val BulletListInputTransformation: InputTransformation by lazy { // 아
         .then(BlockBackspaceOnFirstLine)
         .then(RestoreMissingSentinel)
         .then(KeepCursorAfterSentinel)
+}
+
+/**
+ * 불릿 리스트의 [OutputTransformation]. 화면에 보일 텍스트만 고치고, 저장값은 건드리지 않는다.
+ *
+ * - 텍스트가 `\n`으로 끝나면, 화면용 텍스트 끝에 폭 0 문자([SENTINEL]과 같은 문자)를 하나 붙인다.
+ * - Android 텍스트 레이아웃은 마지막 `\n` 뒤의 빈 줄에 문단 스타일(`textIndent`)을 걸지 않는다. 그 줄이 스타일 범위 바깥이기 때문이다.
+ *     - 그러면 그 줄만 들여쓰기가 빠져 커서가 왼쪽 끝에 붙고, 불릿은 왼쪽 밖에 그려져 보이지 않는다.
+ *     - 문자를 하나 붙이면 그 줄이 빈 줄이 아니게 되어 들여쓰기가 걸린다.
+ * - 가운데의 빈 문단은 스타일 범위 안이라 문제없다. 그래서 끝에만 붙인다.
+ */
+internal val BulletListOutputTransformation = OutputTransformation {
+    if (length > 0 && charAt(length - 1) == '\n') {
+        append(SENTINEL)
+    }
 }
 
 /* ───────────── Input 단계 ───────────── */
