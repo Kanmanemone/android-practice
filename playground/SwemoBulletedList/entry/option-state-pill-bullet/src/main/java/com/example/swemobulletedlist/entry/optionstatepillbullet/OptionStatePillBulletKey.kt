@@ -23,7 +23,9 @@ object OptionStatePillBulletKey : MyNavKey {
 
          커서는 알약 안에 들어가지 않는다. 알약 뒤에서 Backspace를 누르면 공백이 지워져 알약이 풀린다.
 
-         (작업 중) 알약 배경이 아직 decorator 영역을 넘지 못한다.
+         알약 배경은 텍스트 영역 왼쪽 밖(decorator나 바깥 padding 자리)까지 넘칠 수 있다.
+
+         (작업 중) 파라미터 정리가 남아 있다.
     """.trimIndent()
     override val screen: @Composable () -> Unit = { OptionStatePillBulletScreen() }
 }

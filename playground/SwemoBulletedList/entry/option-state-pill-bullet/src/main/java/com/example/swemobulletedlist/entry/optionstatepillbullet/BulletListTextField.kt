@@ -19,8 +19,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** 각 줄 앞에 그리는 Bullet (글머리 기호). 뒤 간격까지 포함한다. */
@@ -62,6 +64,9 @@ private val PILL_VERTICAL_INSET = 2.dp
  *     - 알약 문단에는 불릿을 그리지 않는다. 알약이 불릿 자리에서 시작해 구분자 역할을 한다.
  *     - 첫 줄 들여쓰기는 알약 왼쪽 안쪽 여백(`:` 한 글자 폭)이다. 알약 배경은 x = 0부터, 라벨 글자는 그 여백 뒤부터 시작한다.
  *     - 나머지 줄 들여쓰기는 일반 문단과 같다(불릿 폭). 넘친 줄이 다른 문단의 글자 시작선에 맞춰진다.
+ *     - 알약 배경은 왼쪽으로 [pillOverflow]만큼 텍스트 영역 밖까지 넘칠 수 있다. 넘친 부분은 decorator나 호출부의 padding 위에 그려진다.
+ *         - 배경만 넘는다. 글자는 `BasicTextField` 안쪽에서 잘리고, 넘친 부분은 터치되지 않는다.
+ *         - 이 필드를 감싼 부모가 clip하면 거기서 잘린다.
  *     - `BasicTextField`는 `InlineTextContent`를 지원하지 않아 진짜 composable을 넣을 수 없다. 그래서 그린다.
  * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
  *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
@@ -89,6 +94,7 @@ internal fun BulletListTextField(
     decorator: TextFieldDecorator? = null,
     scrollState: ScrollState = rememberScrollState(),
     pillColor: Color = Color.LightGray,
+    pillOverflow: Dp = 0.dp,
 ) {
     /** 불릿 한 개를 [textStyle]로 측정한 결과. 들여쓰기 폭과 그리기에 같이 쓴다. */
     val textMeasurer = rememberTextMeasurer()
@@ -171,7 +177,18 @@ internal fun BulletListTextField(
                 val bulletedTextField = @Composable {
                     Box(
                         Modifier
-                            .clipToBounds() // 스크롤로 밀려난 불릿이 영역(=Box) 밖에 그려지지 않게
+                            .drawWithContent {
+                                /**
+                                 * 그림을 Box 영역으로 자른다. 좌우만 [pillOverflow]만큼 넓힌다.
+                                 *
+                                 * - 위아래: 스크롤로 밀려난 불릿·알약이 영역 밖에 그려지지 않게 한다.
+                                 * - 좌우: 알약 배경이 텍스트 영역 밖으로 넘칠 자리를 둔다.
+                                 */
+                                val overflow = pillOverflow.toPx()
+                                clipRect(left = -overflow, top = 0f, right = size.width + overflow, bottom = size.height) {
+                                    this@drawWithContent.drawContent()
+                                }
+                            }
                             .drawBehind {
                                 getTextLayout?.invoke()?.let { layout ->
                                     val scrollOffset = scrollState.value.toFloat()
@@ -180,7 +197,7 @@ internal fun BulletListTextField(
                                     } else {
                                         Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
                                     }
-                                    drawPills(layout, pillColor, pillPadding.toFloat(), scroll)
+                                    drawPills(layout, pillColor, pillPadding.toFloat(), pillOverflow.toPx(), scroll)
                                     drawSelection(layout, state.selection, selectionColor, newlineMarkWidth, scroll)
                                     drawBullets(layout, bulletLayout, scroll)
                                 }
@@ -290,6 +307,7 @@ private fun DrawScope.drawSelection(
  * - 알약은 layout의 화면 텍스트에서 [pillRangeOf]로 다시 찾는다. 저장값과 offset이 같아 결과도 같다.
  * - 가로: 라벨 첫 글자의 커서 x에서 [padding]만큼 왼쪽부터, `:` 뒤까지. 투명한 `:`가 오른쪽 안쪽 여백이다.
  *     - 알약 문단의 첫 줄 들여쓰기가 [padding]이라, 왼쪽 끝은 x = 0(불릿 자리 시작)이다.
+ *     - 첫 줄은 왼쪽으로 [overflow]만큼 더 키운다. 텍스트 영역 밖으로 넘친다.
  * - 세로: 줄 상자에서 위아래로 [PILL_VERTICAL_INSET]만큼 줄인 높이. 모서리는 반원이다.
  * - 라벨이 줄을 넘치면 줄마다 따로 그린다.
  */
@@ -297,6 +315,7 @@ private fun DrawScope.drawPills(
     layout: TextLayoutResult,
     color: Color,
     padding: Float,
+    overflow: Float,
     scroll: Offset,
 ) {
     val text = layout.layoutInput.text
@@ -308,7 +327,7 @@ private fun DrawScope.drawPills(
         val lastLine = layout.getLineForOffset(pill.labelEnd) // `:`가 있는 줄
         for (line in firstLine..lastLine) {
             val left = if (line == firstLine) {
-                layout.getHorizontalPosition(pill.labelStart, usePrimaryDirection = true) - padding
+                layout.getHorizontalPosition(pill.labelStart, usePrimaryDirection = true) - padding - overflow
             } else {
                 layout.getHorizontalPosition(layout.getLineStart(line), usePrimaryDirection = true)
             }
