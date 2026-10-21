@@ -48,13 +48,13 @@ internal fun rememberBulletListTextFieldState(initialText: String): TextFieldSta
  *
  * - 텍스트 편집뿐 아니라 탭·방향키 같은 선택 변경 때도 불린다.
  * - 각 단계는 앞 단계가 고친 버퍼를 이어받는다. 순서가 곧 우선순위다.
+ * - 알약에는 커서 규칙을 두지 않는다. 알약은 보이는 모양일 뿐이고, 라벨과 `: `는 일반 글자처럼 커서·선택·드래그가 된다.
  */
 internal val BulletListInputTransformation: InputTransformation by lazy { // 아래 단계들이 먼저 초기화되도록 lazy
     RemoveEmptyFirstLineOnBackspace
         .then(BlockBackspaceOnFirstLine)
         .then(RestoreMissingSentinel)
         .then(KeepCursorAfterSentinel)
-        .then(KeepCursorOutOfPill)
 }
 
 /**
@@ -172,26 +172,6 @@ private val KeepCursorAfterSentinel = InputTransformation {
     }
 }
 
-/**
- * 커서/선택의 양 끝이 알약 안에 오면 알약 바깥으로 옮긴다. 알약은 한 덩어리처럼 움직인다.
- *
- * - 알약 안은 라벨 첫 글자 뒤부터 구분자 공백 앞까지다. 라벨 첫 글자 앞(문단 시작)과 공백 뒤(본문 시작)는 바깥이다.
- * - 기본은 본문 시작으로 민다. 알약을 탭하면 알약 뒤에 커서가 온다.
- *     - 그 자리에서 Backspace를 누르면 공백이 지워져 알약이 풀리고 `라벨:`이 보인다. `: ` 입력으로 만들고 공백 삭제로 푸는 대칭이다.
- * - 본문 시작에서 왼쪽으로 한 칸 오면 라벨 앞으로 보낸다. 알약을 건너뛰고, 알약 뒤로 되돌아가 갇히지 않는다.
- * - 글자를 고친 편집은 건드리지 않는다. 라벨 앞에서 글자를 치면 라벨을 이어서 고칠 수 있다.
- * - sentinel 규칙 뒤에 둔다. 첫 문단의 알약은 sentinel 바로 뒤에서 시작한다.
- */
-private val KeepCursorOutOfPill = InputTransformation {
-    val text = asCharSequence()
-    if (!text.contentEquals(originalText)) return@InputTransformation // 글자를 고친 편집
-    val start = text.offsetOutOfPill(selection.start, originalSelection.start)
-    val end = text.offsetOutOfPill(selection.end, originalSelection.end)
-    if (start != selection.start || end != selection.end) {
-        selection = TextRange(start, end)
-    }
-}
-
 /* ───────────── 헬퍼 ───────────── */
 
 /** 버퍼가 [SENTINEL]로 시작하는지. */
@@ -205,17 +185,3 @@ private fun TextFieldBuffer.startsWithSentinel(): Boolean = length > 0 && charAt
 private fun TextFieldBuffer.isOnlySentinelDeleted(): Boolean =
     originalText.startsWith(SENTINEL) &&
         asCharSequence().contentEquals(originalText.subSequence(1, originalText.length))
-
-/**
- * [offset]이 알약 안이면 알약 바깥 위치를, 아니면 그대로 돌려준다. 규칙은 [KeepCursorOutOfPill]을 따른다.
- *
- * @param originalOffset 이번 편집 전의 위치. 왼쪽으로 움직였는지 판단한다.
- */
-private fun CharSequence.offsetOutOfPill(offset: Int, originalOffset: Int): Int {
-    val paragraphStart = lastIndexOf('\n', startIndex = offset - 1) + 1 // 앞에 `\n`이 없으면 0
-    val paragraphEnd = indexOf('\n', startIndex = offset).let { if (it < 0) length else it }
-    val pill = pillRangeOf(paragraphStart, paragraphEnd) ?: return offset
-    if (offset <= pill.labelStart || offset >= pill.delimiterEnd) return offset
-
-    return if (originalOffset == pill.delimiterEnd) pill.labelStart else pill.delimiterEnd
-}
