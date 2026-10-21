@@ -50,6 +50,9 @@ private const val BULLET = "•  "
 /** 선택이 문단 끝 `\n`을 넘어갈 때 그 줄 끝에 덧칠하는 폭의 기준 글자. 빈 문단도 선택된 게 보이게 한다. */
 private const val NEWLINE_MARK = " "
 
+/** 알약 자간을 잴 때 쓰는 라벨. 내용은 상관없고, 라벨 뒤 `: `가 어떻게 그려지는지만 본다. */
+private const val PILL_REFERENCE_LABEL = "a"
+
 /** 알약 배경을 줄 상자보다 위아래로 줄이는 폭. 위아래 줄의 알약끼리 붙어 보이지 않게 한다. */
 private val PILL_VERTICAL_INSET = 2.dp
 
@@ -127,17 +130,33 @@ internal fun BulletListTextField(
      * 알약 문단에서 구분자의 `:`에 거는 스타일.
      *
      * - 투명하게 칠해 숨긴다. 투명한 `:`가 알약 오른쪽 안쪽 여백이 된다.
-     * - 자간(`letterSpacing`)으로 `:` 폭을 (g + 원래 `:` 폭 + 넘침 폭) / 2로 맞춘다.
-     *     - 알약이 생기기 전 `라벨:`은 g에서 시작한다. 본문 시작을 그대로 두려면 첫 줄 들여쓰기 + 오른쪽 여백 = g + 원래 `:` 폭이어야 한다.
-     *     - 알약 배경은 왼쪽으로 [PillStyle.overflow]만큼 더 그려진다. 그래서 눈에 보이는 왼쪽 여백은 넘침 폭 + 첫 줄 들여쓰기다.
-     *     - 이 왼쪽 여백과 오른쪽 여백을 같게 하면 라벨이 알약 가운데에 온다.
-     * - 구분자 공백에는 걸지 않는다. 알약 밖이라, 폭이 바뀌면 알약과 본문 사이 간격만 달라진다.
+     * - 자간(`letterSpacing`)으로 눈에 보이는 왼쪽 여백과 오른쪽 여백을 같게 맞춘다. 그러면 라벨이 알약 가운데에 온다.
+     *     - 왼쪽 여백 = 넘침 폭([PillStyle.overflow]) + 첫 줄 들여쓰기. 알약 배경은 왼쪽으로 넘침 폭만큼 더 그려진다.
+     *     - 오른쪽 여백 = 투명한 `:`의 폭.
+     *     - 첫 줄 들여쓰기는 본문 시작에서 거꾸로 정하므로, `:`를 넓히면 그만큼 들여쓰기가 줄어든다.
+     * - 자간 값은 공식으로 구하지 않고, 두 값으로 재 본 뒤 직선으로 풀어서 구한다.
+     *     - Android는 자간을 글자 앞뒤로 반씩 나눠 붙인다. 그래서 `:`에 건 자간의 절반가량이 뒤따르는 공백 폭으로 들어간다.
+     *     - 이렇게 나뉘는 비율은 플랫폼이 정하므로, 직접 재는 쪽이 정확하다.
      */
     val pillColonStyle = remember(textMeasurer, textStyle, bulletIndentPx, pillStyle.overflow, density) {
-        val colonWidth = textMeasurer.measure(PILL_DELIMITER.take(1), textStyle).endX()
         val overflowPx = with(density) { pillStyle.overflow.toPx() }
-        val sidePadding = (bulletIndentPx + colonWidth + overflowPx) / 2
-        SpanStyle(color = Color.Transparent, letterSpacing = with(density) { (sidePadding - colonWidth).toSp() })
+        val bodyStart = bulletIndentPx + textMeasurer.measure(PILL_REFERENCE_LABEL + PILL_DELIMITER, textStyle).endX()
+
+        /** 자간이 [spacingPx]일 때 (오른쪽 여백 + 라벨 시작부터 본문 시작까지 폭). 가운데 정렬이면 넘침 폭 + 본문 시작과 같다. */
+        fun measure(spacingPx: Float): Float {
+            val colonStyle = SpanStyle(letterSpacing = with(density) { spacingPx.toSp() })
+            val layout = textMeasurer.measure(pillText(PILL_REFERENCE_LABEL, colonStyle), textStyle)
+            val labelEnd = layout.getHorizontalPosition(PILL_REFERENCE_LABEL.length, usePrimaryDirection = true)
+            val colonEnd = layout.getHorizontalPosition(PILL_REFERENCE_LABEL.length + 1, usePrimaryDirection = true)
+            return (colonEnd - labelEnd) + layout.endX()
+        }
+
+        val probe = bulletIndentPx // 재 볼 자간. 0이 아니면 되고, 크기가 비슷해야 오차가 작다.
+        val atProbe = measure(probe)
+        val atDoubleProbe = measure(probe * 2)
+        val slope = (atDoubleProbe - atProbe) / probe
+        val spacing = probe + (overflowPx + bodyStart - atProbe) / slope
+        SpanStyle(color = Color.Transparent, letterSpacing = with(density) { spacing.toSp() })
     }
 
     /**
@@ -156,12 +175,7 @@ internal fun BulletListTextField(
             val pill = text.pillRangeOf(start, end) ?: return@bulletListOutputTransformation defaultIndent
             val label = text.substring(pill.labelStart, pill.labelEnd)
             val bodyStart = bulletIndentPx + textMeasurer.measure(label + PILL_DELIMITER, textStyle).endX()
-            val pillText = buildAnnotatedString {
-                append(label)
-                withStyle(pillColonStyle) { append(PILL_DELIMITER.take(1)) }
-                append(PILL_DELIMITER.drop(1))
-            }
-            val pillTextWidth = textMeasurer.measure(pillText, textStyle).endX()
+            val pillTextWidth = textMeasurer.measure(pillText(label, pillColonStyle), textStyle).endX()
             with(density) {
                 TextIndent(
                     firstLine = (bodyStart - pillTextWidth).toSp(),
@@ -406,6 +420,17 @@ private val TextLayoutResult.paragraphRanges
  */
 private fun TextLayoutResult.paragraphContentEnd(paragraph: AnnotatedString.Range<*>): Int =
     if (paragraph.end < layoutInput.text.length) paragraph.end - 1 else paragraph.end
+
+/**
+ * 알약 문단 앞부분(`라벨: `)을 화면과 같은 스타일로 만든다. 들여쓰기를 미리 잴 때 쓴다.
+ *
+ * - [colonStyle]은 구분자의 `:`에만 건다. 화면([bulletListOutputTransformation])과 같다.
+ */
+private fun pillText(label: String, colonStyle: SpanStyle) = buildAnnotatedString {
+    append(label)
+    withStyle(colonStyle) { append(PILL_DELIMITER.take(1)) }
+    append(PILL_DELIMITER.drop(1))
+}
 
 /** 텍스트 맨 끝 offset의 커서 x. `size.width`와 달리 끝 공백 폭까지 들어간다. */
 private fun TextLayoutResult.endX(): Float =
