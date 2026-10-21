@@ -63,10 +63,10 @@ private val PILL_VERTICAL_INSET = 2.dp
  *     - [0] drawn-bullet은 이 자리를 decorator의 padding으로 냈다. 들여쓰기는 문단마다 다르게 줄 수 있어서 그쪽으로 바꿨다.
  * - 들여쓰기는 문단마다 따로 건다([bulletListOutputTransformation]). 불릿은 문단 첫 글자를 따라 그리므로 들여쓰기가 바뀌면 같이 움직인다.
  * - 문단 맨 앞이 `라벨: `이면 라벨을 알약으로 보여 준다([pillRangeOf]).
- *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 `라벨: ` 뒤에 둥근 배경을 그린다.
+ *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 `라벨:` 뒤에 둥근 배경을 그린다.
  *     - 알약 문단에는 불릿을 그리지 않는다. 알약이 불릿 자리에서 시작해 구분자 역할을 한다.
  *     - 공백을 쳐서 알약이 생겨도 커서는 움직이지 않는다. 본문 시작 x를 일반 문단일 때와 같게 맞춘다.
- *     - 알약은 x = 0(불릿 자리 시작)부터 본문 시작(커서 바로 왼쪽)까지다. 라벨 글자는 그 안에서 가운데에 온다.
+ *     - 알약은 x = 0(불릿 자리 시작)부터 투명한 `:` 뒤까지다. 구분자 공백은 알약과 본문 사이 간격으로 남긴다.
  *     - 넘친 줄 들여쓰기(r)는 일반 문단 글자 시작선이나 알약 뒤 본문 시작선 중에서 고른다.
  *     - 알약 배경은 텍스트 영역 왼쪽 밖까지 넘칠 수 있다. 글자는 `BasicTextField` 안쪽에서 잘리므로 배경만 넘는다.
  *     - 색·r·넘침 폭은 [pillStyle]로 정한다.
@@ -341,12 +341,12 @@ private fun DrawScope.drawSelection(
 }
 
 /**
- * 알약 문단마다 `라벨: ` 뒤에 둥근 배경을 그린다.
+ * 알약 문단마다 `라벨:` 뒤에 둥근 배경을 그린다.
  *
  * - 알약은 layout의 화면 텍스트에서 [pillRangeOf]로 다시 찾는다. 저장값과 offset이 같아 결과도 같다.
- * - 가로: x = 0(불릿 자리 시작)부터 본문 시작의 커서 x까지. 투명한 `: `가 오른쪽 안쪽 여백이다.
+ * - 가로: x = 0(불릿 자리 시작)부터 `:` 뒤까지. 투명한 `:`가 오른쪽 안쪽 여백이다.
  *     - 첫 줄은 왼쪽으로 [overflow]만큼 더 키운다. 텍스트 영역 밖으로 넘친다.
- *     - 구분자 공백에서 줄이 넘어가면, 마지막 줄은 줄 오른쪽 끝까지만 그린다.
+ *     - 구분자 공백은 덮지 않는다. 알약과 본문 사이에 한 칸 간격이 남는다.
  * - 세로: 줄 상자에서 위아래로 [PILL_VERTICAL_INSET]만큼 줄인 높이. 모서리는 반원이다.
  * - 라벨이 줄을 넘치면 줄마다 따로 그린다.
  */
@@ -369,8 +369,8 @@ private fun DrawScope.drawPills(
             } else {
                 layout.getHorizontalPosition(layout.getLineStart(line), usePrimaryDirection = true)
             }
-            val right = if (line == lastLine && layout.getLineForOffset(pill.delimiterEnd) == lastLine) {
-                layout.getHorizontalPosition(pill.delimiterEnd, usePrimaryDirection = true)
+            val right = if (line == lastLine) {
+                layout.getHorizontalPosition(pill.backgroundEnd, usePrimaryDirection = true)
             } else {
                 layout.getLineRight(line)
             }

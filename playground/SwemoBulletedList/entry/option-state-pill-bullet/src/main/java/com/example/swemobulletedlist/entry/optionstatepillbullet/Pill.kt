@@ -19,7 +19,11 @@ internal const val PILL_DELIMITER = ": "
  */
 internal class PillRange(val labelStart: Int, val labelEnd: Int) {
     /** 구분자(`: `) 바로 뒤. 본문이 시작하는 위치다. */
-    val delimiterEnd: Int get() = labelEnd + PILL_DELIMITER.length}
+    val delimiterEnd: Int get() = labelEnd + PILL_DELIMITER.length
+
+    /** 알약 배경이 덮는 범위의 끝. 라벨과 `:`까지이고, 공백은 알약과 본문 사이 간격이라 빠진다. */
+    val backgroundEnd: Int get() = labelEnd + 1
+}
 
 /**
  * 문단(`start` ~ `end`, `end`는 문단 끝 직전)의 맨 앞에서 알약을 찾는다. 없으면 `null`이다.
