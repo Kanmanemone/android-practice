@@ -127,14 +127,16 @@ internal fun BulletListTextField(
      * 알약 문단에서 구분자의 `:`에 거는 스타일.
      *
      * - 투명하게 칠해 숨긴다. 투명한 `:`가 알약 오른쪽 안쪽 여백이 된다.
-     * - 자간(`letterSpacing`)으로 `:` 폭을 (g + 원래 `:` 폭) / 2로 맞춘다.
-     *     - 알약이 생기기 전 `라벨:`은 g에서 시작한다. 본문 시작을 그대로 두려면 왼쪽 여백 + 오른쪽 여백 = g + 원래 `:` 폭이어야 한다.
-     *     - 이 합을 반씩 나누면 라벨이 알약 가운데에 온다.
+     * - 자간(`letterSpacing`)으로 `:` 폭을 (g + 원래 `:` 폭 + 넘침 폭) / 2로 맞춘다.
+     *     - 알약이 생기기 전 `라벨:`은 g에서 시작한다. 본문 시작을 그대로 두려면 첫 줄 들여쓰기 + 오른쪽 여백 = g + 원래 `:` 폭이어야 한다.
+     *     - 알약 배경은 왼쪽으로 [PillStyle.overflow]만큼 더 그려진다. 그래서 눈에 보이는 왼쪽 여백은 넘침 폭 + 첫 줄 들여쓰기다.
+     *     - 이 왼쪽 여백과 오른쪽 여백을 같게 하면 라벨이 알약 가운데에 온다.
      * - 구분자 공백에는 걸지 않는다. 알약 밖이라, 폭이 바뀌면 알약과 본문 사이 간격만 달라진다.
      */
-    val pillColonStyle = remember(textMeasurer, textStyle, bulletIndentPx, density) {
+    val pillColonStyle = remember(textMeasurer, textStyle, bulletIndentPx, pillStyle.overflow, density) {
         val colonWidth = textMeasurer.measure(PILL_DELIMITER.take(1), textStyle).endX()
-        val sidePadding = (bulletIndentPx + colonWidth) / 2
+        val overflowPx = with(density) { pillStyle.overflow.toPx() }
+        val sidePadding = (bulletIndentPx + colonWidth + overflowPx) / 2
         SpanStyle(color = Color.Transparent, letterSpacing = with(density) { (sidePadding - colonWidth).toSp() })
     }
 
