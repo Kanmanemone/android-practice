@@ -1,6 +1,8 @@
-# option-state-pill-bullet 작업 기록 — 알약 배치 · 클립보드 · 테스트
+# option-state-pill-bullet 테스트 코드와 작업 기록 — 알약 배치 · 클립보드 · 커서 · 탭
 
-`feature/pill-bullet` 브랜치에서 `f25d7dd` 다음부터 `acf4e7f`까지 한 작업을 정리한다.
+`feature/pill-bullet` 브랜치에서 `f25d7dd` 다음부터 한 작업과 테스트 코드를 정리한다.
+
+- 같은 코드를 옮겨 온 `option-state-dash-bullet`([3])에도 같은 수정과 테스트가 들어 있다.
 무엇을 바꿨는지, 왜 그렇게 했는지, 중간에 실패한 방법과 그 원인, 테스트를 어떻게 짜고 돌리는지를 담는다.
 
 ---
@@ -15,6 +17,7 @@
 | 복사·잘라내기 | 붙여넣기 → 잘라내기 → 다시 붙여넣기 해도 화면이 같아야 한다 | 줄바꿈이 공백으로 바뀌던 버그를 고쳤다. 테스트로 확인한다 |
 | 원본 보존 | 화면 처리 때문에 저장값이 바뀌면 안 된다 | 화면 처리는 OutputTransformation 안에서만 한다. 테스트로 확인한다 |
 | 메모장 같은 커서 | 본문에서 알약 쪽으로 드래그해도 커서가 순간이동하지 않아야 한다 | 알약 안 커서 규칙을 없앴다. 라벨도 일반 글자처럼 커서·선택된다. 테스트로 확인한다 |
+| 문단 탭 | 문단 오른쪽 빈 곳을 누르면 그 문단에 커서가 와야 한다 | 다음 문단 맨 앞으로 가던 버그를 고쳤다. 테스트로 확인한다 |
 
 이 세션의 커밋(오래된 것부터):
 
@@ -31,6 +34,7 @@
 | `f0185ba` | 알약 배치를 라벨마다 재고, 정수 들여쓰기까지 맞춰 계산 (`measurePillLayout`) |
 | `e163635` | 알약 배치 규칙 테스트 (`PillLayoutTest`) |
 | `acf4e7f` | 알약 안 커서 규칙(`KeepCursorOutOfPill`) 제거, 커서 테스트 (`PillCursorTest`) |
+| `154bcd7` | 문단 오른쪽 빈 곳을 누르면 커서가 다음 문단 맨 앞으로 가던 버그 수정 (`ParagraphEndTapFix`), 탭 테스트 (`ParagraphTapTest`) |
 
 ---
 
@@ -358,6 +362,8 @@ ffff: ssss
 | `src/androidTest/.../PasteCutRoundTripTest.kt` | 새 파일 |
 | `src/androidTest/.../PillLayoutTest.kt` | 새 파일 |
 | `src/androidTest/.../PillCursorTest.kt` | 새 파일 |
+| `src/main/.../ParagraphEndTapFix.kt` | 새 파일. 문단 오른쪽 탭 보정 |
+| `src/androidTest/.../ParagraphTapTest.kt` | 새 파일 |
 | `build.gradle.kts` | instrumented 테스트 설정 |
 
 ---
@@ -391,7 +397,43 @@ ffff: ssss
 
 ---
 
-## 11. 실기기로 확인할 때 쓴 방법
+## 11. 문단 오른쪽을 누르면 다음 문단으로 가던 버그 (`154bcd7`)
+
+### 증상
+
+[2]에서 5번째 문단의 글자 오른쪽 빈 곳을 누르면 커서가 6번째 문단 맨 앞에 놓였다. [0]에서는 5번째 문단 끝에 놓인다.
+
+### 원인
+
+- 화면용 텍스트는 문단마다 `ParagraphStyle`을 건다. Compose(`MultiParagraphIntrinsics`)는 스타일 범위마다 Android 레이아웃을 하나씩 따로 만든다.
+- 문단을 끝내는 `
+`은 공백(`PARAGRAPH_BREAK`)으로 바뀌어 그 문단의 마지막 글자가 된다.
+- 누른 위치를 offset으로 바꾸는 `Layout.getOffsetForHorizontal`은 레이아웃의 **마지막 줄**에서는 줄 끝 글자 뒤까지를 후보로 본다. 줄 오른쪽 빈 곳을 누르면 그 공백 뒤, 곧 다음 문단 맨 앞이 나온다.
+- 마지막 줄이 아니면 줄 끝 글자 앞까지만 본다. 텍스트 전체가 레이아웃 하나인 [0]는 그래서 문제가 없다.
+- [1]도 같은 구조라 같은 버그가 있을 것으로 보인다(확인하지 않음).
+
+### 해결 — `ParagraphEndTapFix`
+
+- 텍스트 영역 Box에 `pointerInput`을 걸어, 누르는 동안의 손가락 위치를 기억한다.
+    - `Initial` 단계에서 적는다. 텍스트 필드가 선택을 바꾸는 `Main` 단계보다 먼저다.
+    - 이벤트를 소비하지 않아 탭·드래그 처리는 그대로다.
+    - `Final` 단계에서 손가락이 모두 떨어졌으면 지운다. 같은 이벤트의 `Main` 단계 선택 변경까지는 위치가 남는다.
+- `inputTransformation`에서, 누르는 동안 바뀐 선택 끝이 문단 맨 앞이고 손가락이 그 앞 문단의 마지막 줄에 있으면 한 칸 앞(앞 문단 끝)으로 되돌린다.
+- 한계: 선택 손잡이는 별도 창(Popup)에서 끌려 손가락 위치가 오지 않는다. 손잡이를 줄 오른쪽 끝으로 끄는 경우는 고치지 못한다.
+
+### 테스트 — `ParagraphTapTest`
+
+| 테스트 | 확인하는 것 |
+|---|---|
+| `tapRightOfParagraph_putsCursorAtItsEnd` | 문단마다 필드 오른쪽 끝 근처를 실제로 탭하면 커서가 그 문단 끝에 온다 |
+| `tapLeftOfParagraph_putsCursorAtItsStart` | 문단마다 왼쪽 끝(불릿·알약 자리)을 탭하면 커서가 그 문단 맨 앞에 온다. 고친 뒤에도 반대쪽으로 잘못 끌려가지 않는지 본다 |
+
+- 문단은 일반 문단과 알약 문단을 섞는다.
+- 보정을 연결하기 전 코드로 돌리면 실패한다(`expected TextRange(6) but was TextRange(7)`).
+
+---
+
+## 12. 실기기로 확인할 때 쓴 방법
 
 다음에 비슷한 문제를 볼 때 참고한다.
 
