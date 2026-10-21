@@ -46,10 +46,7 @@ fun OptionStateDashBulletScreen(
             .padding(16.dp),
         textStyle = textStyle,
         cursorBrush = SolidColor(textStyle.color), // 기본값(검정)은 다크모드에서 안 보인다
-        pillStyle = PillStyle(
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            overflow = 8.dp, // 바깥 padding(16.dp) 안쪽까지 알약 배경을 넓힌다
-        ),
+        pillStyle = PillStyle(color = MaterialTheme.colorScheme.secondaryContainer),
     )
 }
 
