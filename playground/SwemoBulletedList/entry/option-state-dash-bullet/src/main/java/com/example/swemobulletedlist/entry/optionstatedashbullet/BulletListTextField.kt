@@ -209,12 +209,32 @@ internal fun BulletListTextField(
     val clipboard = LocalClipboard.current
     val storedTextClipboard = remember(clipboard, state) { StoredTextClipboard(clipboard, state) }
 
-    /** sentinel 규칙 뒤에 [StoredTextClipboard.editRecorder]를 붙인다. 잘라내기 전 글을 클립보드가 알 수 있게 한다. */
-    val inputTransformation = remember(storedTextClipboard) {
-        BulletListInputTransformation.then(storedTextClipboard.editRecorder)
+    var getTextLayout: (() -> TextLayoutResult?)? by remember { mutableStateOf(null) }
+
+    /**
+     * layout 좌표를 텍스트 영역(아래 Box) 좌표로 바꾸는 스크롤 이동량.
+     *
+     * - 한 줄 모드는 가로로, 여러 줄 모드는 세로로 스크롤된다.
+     */
+    val currentScrollOffset = {
+        val scrollOffset = scrollState.value.toFloat()
+        if (lineLimits == TextFieldLineLimits.SingleLine) Offset(-scrollOffset, 0f) else Offset(0f, -scrollOffset)
     }
 
-    var getTextLayout: (() -> TextLayoutResult?)? by remember { mutableStateOf(null) }
+    /** 문단 오른쪽 빈 곳을 눌렀을 때 커서가 다음 문단 맨 앞으로 가지 않게 한다. */
+    val paragraphEndTapFix = remember { ParagraphEndTapFix({ getTextLayout?.invoke() }, { currentScrollOffset() }) }
+
+    /**
+     * sentinel 규칙 뒤에 붙이는 단계들.
+     *
+     * - [ParagraphEndTapFix.inputTransformation]: 손가락으로 바뀐 선택을 고친다.
+     * - [StoredTextClipboard.editRecorder]: 잘라내기 전 글을 클립보드가 알 수 있게 남긴다.
+     */
+    val inputTransformation = remember(storedTextClipboard, paragraphEndTapFix) {
+        BulletListInputTransformation
+            .then(paragraphEndTapFix.inputTransformation)
+            .then(storedTextClipboard.editRecorder)
+    }
 
     CompositionLocalProvider(
         LocalTextSelectionColors provides hiddenHighlightColors,
@@ -249,6 +269,7 @@ internal fun BulletListTextField(
                 val bulletedTextField = @Composable {
                     Box(
                         Modifier
+                            .then(paragraphEndTapFix.pointerModifier)
                             .drawWithContent {
                                 /**
                                  * 그림을 Box 영역으로 자른다. 좌우만 알약 넘침 폭([PillStyle.overflow])만큼 넓힌다.
@@ -263,12 +284,7 @@ internal fun BulletListTextField(
                             }
                             .drawBehind {
                                 getTextLayout?.invoke()?.let { layout ->
-                                    val scrollOffset = scrollState.value.toFloat()
-                                    val scroll = if (lineLimits == TextFieldLineLimits.SingleLine) {
-                                        Offset(-scrollOffset, 0f) // 한 줄 모드는 가로로 스크롤된다
-                                    } else {
-                                        Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
-                                    }
+                                    val scroll = currentScrollOffset()
                                     drawPills(layout, pillStyle.color, pillStyle.overflow.toPx(), scroll)
                                     drawSelection(layout, state.selection, selectionColor, newlineMarkWidth, scroll)
                                     drawDashBullets(layout, dash, pillStyle.color, scroll)
