@@ -67,6 +67,7 @@ private val PILL_VERTICAL_INSET = 2.dp
  *     - 알약 문단에는 불릿을 그리지 않는다. 알약이 불릿 자리에서 시작해 구분자 역할을 한다.
  *     - 공백을 쳐서 알약이 생겨도 커서는 움직이지 않는다. 본문 시작 x를 일반 문단일 때와 같게 맞춘다.
  *     - 알약은 x = 0(불릿 자리 시작)부터 투명한 `:` 뒤까지다. 구분자 공백은 알약과 본문 사이 간격으로 남긴다.
+ *     - 라벨 글자는 알약 가운데에 온다. 왼쪽 여백(첫 줄 들여쓰기)과 오른쪽 여백(투명한 `:`)의 폭을 같게 맞춘다.
  *     - 넘친 줄 들여쓰기(r)는 일반 문단 글자 시작선이나 알약 뒤 본문 시작선 중에서 고른다.
  *     - 알약 배경은 텍스트 영역 왼쪽 밖까지 넘칠 수 있다. 글자는 `BasicTextField` 안쪽에서 잘리므로 배경만 넘는다.
  *     - 색·r·넘침 폭은 [pillStyle]로 정한다.
@@ -123,18 +124,18 @@ internal fun BulletListTextField(
     val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
 
     /**
-     * 알약 문단에서 구분자 `: `에 거는 스타일.
+     * 알약 문단에서 구분자의 `:`에 거는 스타일.
      *
-     * - 투명하게 칠해 숨긴다. 투명한 `: `가 알약 오른쪽 안쪽 여백이 된다.
-     * - 자간(`letterSpacing`)으로 `: ` 폭을 (g + 원래 `: ` 폭) / 2로 맞춘다.
-     *     - 알약이 생기기 전 `라벨: `은 g에서 시작한다. 본문 시작을 그대로 두려면 왼쪽 여백 + 오른쪽 여백 = g + 원래 `: ` 폭이어야 한다.
+     * - 투명하게 칠해 숨긴다. 투명한 `:`가 알약 오른쪽 안쪽 여백이 된다.
+     * - 자간(`letterSpacing`)으로 `:` 폭을 (g + 원래 `:` 폭) / 2로 맞춘다.
+     *     - 알약이 생기기 전 `라벨:`은 g에서 시작한다. 본문 시작을 그대로 두려면 왼쪽 여백 + 오른쪽 여백 = g + 원래 `:` 폭이어야 한다.
      *     - 이 합을 반씩 나누면 라벨이 알약 가운데에 온다.
+     * - 구분자 공백에는 걸지 않는다. 알약 밖이라, 폭이 바뀌면 알약과 본문 사이 간격만 달라진다.
      */
-    val pillDelimiterStyle = remember(textMeasurer, textStyle, bulletIndentPx, density) {
-        val delimiterWidth = textMeasurer.measure(PILL_DELIMITER, textStyle).endX()
-        val sidePadding = (bulletIndentPx + delimiterWidth) / 2
-        val spacing = (sidePadding - delimiterWidth) / PILL_DELIMITER.length // 글자마다 더해지는 폭
-        SpanStyle(color = Color.Transparent, letterSpacing = with(density) { spacing.toSp() })
+    val pillColonStyle = remember(textMeasurer, textStyle, bulletIndentPx, density) {
+        val colonWidth = textMeasurer.measure(PILL_DELIMITER.take(1), textStyle).endX()
+        val sidePadding = (bulletIndentPx + colonWidth) / 2
+        SpanStyle(color = Color.Transparent, letterSpacing = with(density) { (sidePadding - colonWidth).toSp() })
     }
 
     /**
@@ -142,20 +143,21 @@ internal fun BulletListTextField(
      *
      * - 알약 문단의 첫 줄은 본문 시작 x가 일반 문단일 때와 같아지도록 거꾸로 계산한다.
      *     - 본문 시작 = g + `라벨: ` 폭. 공백을 친 직후 커서가 있던 자리다.
-     *     - 첫 줄 들여쓰기 = 본문 시작 - [pillDelimiterStyle]을 건 `라벨: ` 폭. 이 값이 알약 왼쪽 안쪽 여백이 된다.
+     *     - 첫 줄 들여쓰기 = 본문 시작 - [pillColonStyle]을 건 `라벨: ` 폭. 이 값이 알약 왼쪽 안쪽 여백이 된다.
      *     - 들여쓰기는 layout 전에 정해야 해서 layout 결과를 쓸 수 없다. 그래서 [textStyle]로 미리 잰다.
      *     - 자간을 계산으로 맞추지 않고 재는 이유: 자간이 실제로 더해지는 방식이 플랫폼마다 조금씩 달라도 본문 시작은 정확히 맞는다.
      * - 알약 문단의 넘친 줄(r)은 [PillStyle.restLineIndent]를 따른다.
      * - 나머지 문단은 g만큼 들여쓴다.
      */
-    val outputTransformation = remember(defaultIndent, pillDelimiterStyle, pillStyle.restLineIndent, textMeasurer, textStyle, density) {
-        bulletListOutputTransformation(pillDelimiterStyle) { text, start, end ->
+    val outputTransformation = remember(defaultIndent, pillColonStyle, pillStyle.restLineIndent, textMeasurer, textStyle, density) {
+        bulletListOutputTransformation(pillColonStyle) { text, start, end ->
             val pill = text.pillRangeOf(start, end) ?: return@bulletListOutputTransformation defaultIndent
             val label = text.substring(pill.labelStart, pill.labelEnd)
             val bodyStart = bulletIndentPx + textMeasurer.measure(label + PILL_DELIMITER, textStyle).endX()
             val pillText = buildAnnotatedString {
                 append(label)
-                withStyle(pillDelimiterStyle) { append(PILL_DELIMITER) }
+                withStyle(pillColonStyle) { append(PILL_DELIMITER.take(1)) }
+                append(PILL_DELIMITER.drop(1))
             }
             val pillTextWidth = textMeasurer.measure(pillText, textStyle).endX()
             with(density) {
