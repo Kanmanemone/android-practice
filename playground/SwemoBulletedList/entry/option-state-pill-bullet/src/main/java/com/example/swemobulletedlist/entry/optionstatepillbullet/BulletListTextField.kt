@@ -33,10 +33,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextIndent
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -60,12 +63,13 @@ private val PILL_VERTICAL_INSET = 2.dp
  *     - [0] drawn-bullet은 이 자리를 decorator의 padding으로 냈다. 들여쓰기는 문단마다 다르게 줄 수 있어서 그쪽으로 바꿨다.
  * - 들여쓰기는 문단마다 따로 건다([bulletListOutputTransformation]). 불릿은 문단 첫 글자를 따라 그리므로 들여쓰기가 바뀌면 같이 움직인다.
  * - 문단 맨 앞이 `라벨: `이면 라벨을 알약으로 보여 준다([pillRangeOf]).
- *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 라벨과 `:` 뒤에 둥근 배경을 그린다.
+ *     - 글자는 그대로 두고, 구분자 `: `만 투명하게 칠한 뒤 `라벨: ` 뒤에 둥근 배경을 그린다.
  *     - 알약 문단에는 불릿을 그리지 않는다. 알약이 불릿 자리에서 시작해 구분자 역할을 한다.
- *     - 첫 줄 들여쓰기는 알약 왼쪽 안쪽 여백(p)이다. 알약 배경은 x = 0부터, 라벨 글자는 그 여백 뒤부터 시작한다.
+ *     - 공백을 쳐서 알약이 생겨도 커서는 움직이지 않는다. 본문 시작 x를 일반 문단일 때와 같게 맞춘다.
+ *     - 알약은 x = 0(불릿 자리 시작)부터 본문 시작(커서 바로 왼쪽)까지다. 라벨 글자는 그 안에서 가운데에 온다.
  *     - 넘친 줄 들여쓰기(r)는 일반 문단 글자 시작선이나 알약 뒤 본문 시작선 중에서 고른다.
  *     - 알약 배경은 텍스트 영역 왼쪽 밖까지 넘칠 수 있다. 글자는 `BasicTextField` 안쪽에서 잘리므로 배경만 넘는다.
- *     - 색·p·r·넘침 폭은 [pillStyle]로 정한다.
+ *     - 색·r·넘침 폭은 [pillStyle]로 정한다.
  *     - `BasicTextField`는 `InlineTextContent`를 지원하지 않아 진짜 composable을 넣을 수 없다. 그래서 그린다.
  * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
  *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
@@ -79,7 +83,7 @@ private val PILL_VERTICAL_INSET = 2.dp
  *
  * @param bulletIndent 일반 문단의 들여쓰기(g). 불릿은 이 자리의 오른쪽 끝(글자 바로 왼쪽)에 그린다.
  *     - `Dp.Unspecified`면 불릿([BULLET]) 폭이다.
- * @param pillStyle 알약 모양과 알약 문단의 들여쓰기(p, r).
+ * @param pillStyle 알약 모양과 알약 문단의 넘친 줄 들여쓰기(r).
  */
 @Composable
 internal fun BulletListTextField(
@@ -111,41 +115,57 @@ internal fun BulletListTextField(
      * - `TextIndent`는 sp 단위만 받으므로, px·dp 폭을 sp로 바꿔 넣는다.
      * - [textStyle]에도 기본값으로 넣는다. 문단별 스타일이 빠진 곳이 있어도 불릿 자리는 남는다.
      */
-    val bulletIndentSp = with(density) {
-        if (bulletIndent == Dp.Unspecified) bulletLayout.size.width.toSp() else bulletIndent.toSp()
+    val bulletIndentPx = with(density) {
+        if (bulletIndent == Dp.Unspecified) bulletLayout.size.width.toFloat() else bulletIndent.toPx()
     }
+    val bulletIndentSp = with(density) { bulletIndentPx.toSp() }
     val defaultIndent = TextIndent(firstLine = bulletIndentSp, restLine = bulletIndentSp)
     val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
 
-    /** 알약 왼쪽 안쪽 여백(p)의 px 폭. 기본은 `:` 한 글자 폭이다. */
-    val pillPadding = remember(textMeasurer, textStyle, pillStyle.startPadding, density) {
-        if (pillStyle.startPadding == Dp.Unspecified) {
-            textMeasurer.measure(PILL_DELIMITER.take(1), textStyle).size.width.toFloat()
-        } else {
-            with(density) { pillStyle.startPadding.toPx() }
-        }
+    /**
+     * 알약 문단에서 구분자 `: `에 거는 스타일.
+     *
+     * - 투명하게 칠해 숨긴다. 투명한 `: `가 알약 오른쪽 안쪽 여백이 된다.
+     * - 자간(`letterSpacing`)으로 `: ` 폭을 (g + 원래 `: ` 폭) / 2로 맞춘다.
+     *     - 알약이 생기기 전 `라벨: `은 g에서 시작한다. 본문 시작을 그대로 두려면 왼쪽 여백 + 오른쪽 여백 = g + 원래 `: ` 폭이어야 한다.
+     *     - 이 합을 반씩 나누면 라벨이 알약 가운데에 온다.
+     */
+    val pillDelimiterStyle = remember(textMeasurer, textStyle, bulletIndentPx, density) {
+        val delimiterWidth = textMeasurer.measure(PILL_DELIMITER, textStyle).endX()
+        val sidePadding = (bulletIndentPx + delimiterWidth) / 2
+        val spacing = (sidePadding - delimiterWidth) / PILL_DELIMITER.length // 글자마다 더해지는 폭
+        SpanStyle(color = Color.Transparent, letterSpacing = with(density) { spacing.toSp() })
     }
 
     /**
      * 문단마다 들여쓰기를 거는 [bulletListOutputTransformation].
      *
-     * - 알약 문단은 첫 줄을 알약 왼쪽 여백(p)만큼만 들여쓴다. 알약이 불릿 자리를 차지한다.
+     * - 알약 문단의 첫 줄은 본문 시작 x가 일반 문단일 때와 같아지도록 거꾸로 계산한다.
+     *     - 본문 시작 = g + `라벨: ` 폭. 공백을 친 직후 커서가 있던 자리다.
+     *     - 첫 줄 들여쓰기 = 본문 시작 - [pillDelimiterStyle]을 건 `라벨: ` 폭. 이 값이 알약 왼쪽 안쪽 여백이 된다.
+     *     - 들여쓰기는 layout 전에 정해야 해서 layout 결과를 쓸 수 없다. 그래서 [textStyle]로 미리 잰다.
+     *     - 자간을 계산으로 맞추지 않고 재는 이유: 자간이 실제로 더해지는 방식이 플랫폼마다 조금씩 달라도 본문 시작은 정확히 맞는다.
      * - 알약 문단의 넘친 줄(r)은 [PillStyle.restLineIndent]를 따른다.
-     *     - [PillRestLineIndent.Pill]이면 `라벨: `을 [textStyle]로 미리 재서 p에 더한다. 들여쓰기는 layout 전에 정해야 해서 layout 결과를 쓸 수 없다.
      * - 나머지 문단은 g만큼 들여쓴다.
      */
-    val outputTransformation = remember(defaultIndent, pillPadding, pillStyle.restLineIndent, textMeasurer, textStyle, density) {
-        val pillPaddingSp = with(density) { pillPadding.toSp() }
-        val pillIndent = TextIndent(firstLine = pillPaddingSp, restLine = bulletIndentSp)
-        bulletListOutputTransformation { text, start, end ->
-            val pill = text.pillRangeOf(start, end)
-            when {
-                pill == null -> defaultIndent
-                pillStyle.restLineIndent == PillRestLineIndent.Bullet -> pillIndent
-                else -> {
-                    val pillWidth = textMeasurer.measure(text.substring(pill.labelStart, pill.delimiterEnd), textStyle).size.width
-                    TextIndent(firstLine = pillPaddingSp, restLine = with(density) { (pillPadding + pillWidth).toSp() })
-                }
+    val outputTransformation = remember(defaultIndent, pillDelimiterStyle, pillStyle.restLineIndent, textMeasurer, textStyle, density) {
+        bulletListOutputTransformation(pillDelimiterStyle) { text, start, end ->
+            val pill = text.pillRangeOf(start, end) ?: return@bulletListOutputTransformation defaultIndent
+            val label = text.substring(pill.labelStart, pill.labelEnd)
+            val bodyStart = bulletIndentPx + textMeasurer.measure(label + PILL_DELIMITER, textStyle).endX()
+            val pillText = buildAnnotatedString {
+                append(label)
+                withStyle(pillDelimiterStyle) { append(PILL_DELIMITER) }
+            }
+            val pillTextWidth = textMeasurer.measure(pillText, textStyle).endX()
+            with(density) {
+                TextIndent(
+                    firstLine = (bodyStart - pillTextWidth).toSp(),
+                    restLine = when (pillStyle.restLineIndent) {
+                        PillRestLineIndent.Bullet -> bulletIndentSp
+                        PillRestLineIndent.Pill -> bodyStart.toSp()
+                    },
+                )
             }
         }
     }
@@ -216,7 +236,7 @@ internal fun BulletListTextField(
                                     } else {
                                         Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
                                     }
-                                    drawPills(layout, pillStyle.color, pillPadding, pillStyle.overflow.toPx(), scroll)
+                                    drawPills(layout, pillStyle.color, pillStyle.overflow.toPx(), scroll)
                                     drawSelection(layout, state.selection, selectionColor, newlineMarkWidth, scroll)
                                     drawBullets(layout, bulletLayout, scroll)
                                 }
@@ -321,19 +341,18 @@ private fun DrawScope.drawSelection(
 }
 
 /**
- * 알약 문단마다 라벨과 `:` 뒤에 둥근 배경을 그린다.
+ * 알약 문단마다 `라벨: ` 뒤에 둥근 배경을 그린다.
  *
  * - 알약은 layout의 화면 텍스트에서 [pillRangeOf]로 다시 찾는다. 저장값과 offset이 같아 결과도 같다.
- * - 가로: 라벨 첫 글자의 커서 x에서 [padding]만큼 왼쪽부터, `:` 뒤까지. 투명한 `:`가 오른쪽 안쪽 여백이다.
- *     - 알약 문단의 첫 줄 들여쓰기가 [padding]이라, 왼쪽 끝은 x = 0(불릿 자리 시작)이다.
+ * - 가로: x = 0(불릿 자리 시작)부터 본문 시작의 커서 x까지. 투명한 `: `가 오른쪽 안쪽 여백이다.
  *     - 첫 줄은 왼쪽으로 [overflow]만큼 더 키운다. 텍스트 영역 밖으로 넘친다.
+ *     - 구분자 공백에서 줄이 넘어가면, 마지막 줄은 줄 오른쪽 끝까지만 그린다.
  * - 세로: 줄 상자에서 위아래로 [PILL_VERTICAL_INSET]만큼 줄인 높이. 모서리는 반원이다.
  * - 라벨이 줄을 넘치면 줄마다 따로 그린다.
  */
 private fun DrawScope.drawPills(
     layout: TextLayoutResult,
     color: Color,
-    padding: Float,
     overflow: Float,
     scroll: Offset,
 ) {
@@ -346,12 +365,12 @@ private fun DrawScope.drawPills(
         val lastLine = layout.getLineForOffset(pill.labelEnd) // `:`가 있는 줄
         for (line in firstLine..lastLine) {
             val left = if (line == firstLine) {
-                layout.getHorizontalPosition(pill.labelStart, usePrimaryDirection = true) - padding - overflow
+                -overflow
             } else {
                 layout.getHorizontalPosition(layout.getLineStart(line), usePrimaryDirection = true)
             }
-            val right = if (line == lastLine) {
-                layout.getHorizontalPosition(pill.backgroundEnd, usePrimaryDirection = true)
+            val right = if (line == lastLine && layout.getLineForOffset(pill.delimiterEnd) == lastLine) {
+                layout.getHorizontalPosition(pill.delimiterEnd, usePrimaryDirection = true)
             } else {
                 layout.getLineRight(line)
             }
@@ -383,3 +402,7 @@ private val TextLayoutResult.paragraphRanges
  */
 private fun TextLayoutResult.paragraphContentEnd(paragraph: AnnotatedString.Range<*>): Int =
     if (paragraph.end < layoutInput.text.length) paragraph.end - 1 else paragraph.end
+
+/** 텍스트 맨 끝 offset의 커서 x. `size.width`와 달리 끝 공백 폭까지 들어간다. */
+private fun TextLayoutResult.endX(): Float =
+    getHorizontalPosition(layoutInput.text.length, usePrimaryDirection = true)

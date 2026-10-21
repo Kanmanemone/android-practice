@@ -9,7 +9,6 @@ import androidx.compose.foundation.text.input.insert
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.then
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -68,14 +67,15 @@ internal val BulletListInputTransformation: InputTransformation by lazy { // 아
  * - 텍스트가 `\n`으로 끝나면, 화면용 텍스트 끝에 폭 0 문자([SENTINEL]과 같은 문자)를 하나 붙인다.
  *     - 그러지 않으면 마지막 빈 문단은 글자가 없어 스타일 범위가 비고, 들여쓰기가 걸리지 않는다.
  *     - 그러면 그 줄만 커서가 왼쪽 끝에 붙고, 불릿은 왼쪽 밖에 그려져 보이지 않는다.
- * - 알약 문단([pillRangeOf])은 구분자 `: `를 투명하게 칠해 숨긴다.
+ * - 알약 문단([pillRangeOf])은 구분자 `: `에 [pillDelimiterStyle]을 건다.
  *     - 글자를 빼지 않아 화면 offset이 저장값과 그대로 같다.
- *     - 투명한 `:`는 알약 오른쪽 안쪽 여백이, 공백은 알약과 본문 사이 간격이 된다.
  * - 판단은 텍스트 내용으로만 한다. layout보다 먼저 돌기 때문이다.
  *
+ * @param pillDelimiterStyle 알약 문단의 구분자 `: `에 거는 스타일. 투명하게 칠하고 폭을 맞춘다.
  * @param indentOf 문단 범위(`start` ~ `end`, `end`는 `\n` 직전)를 받아 그 문단의 들여쓰기를 돌려준다.
  */
 internal fun bulletListOutputTransformation(
+    pillDelimiterStyle: SpanStyle,
     indentOf: (text: CharSequence, start: Int, end: Int) -> TextIndent,
 ) = OutputTransformation {
     if (length > 0 && charAt(length - 1) == '\n') {
@@ -92,7 +92,7 @@ internal fun bulletListOutputTransformation(
         val styleEnd = if (end < text.length) end + 1 else end // 문단을 끝내는 `\n` 자리까지
         addStyle(ParagraphStyle(textIndent = indentOf(text, start, end)), start, styleEnd)
         text.pillRangeOf(start, end)?.let { pill ->
-            addStyle(SpanStyle(color = Color.Transparent), pill.labelEnd, pill.delimiterEnd)
+            addStyle(pillDelimiterStyle, pill.labelEnd, pill.delimiterEnd)
         }
     }
 }
