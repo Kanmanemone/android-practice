@@ -1,9 +1,12 @@
 # option-state-pill-bullet 테스트 코드와 작업 기록 — 알약 배치 · 클립보드 · 커서 · 탭
 
 `feature/pill-bullet` 브랜치에서 `f25d7dd` 다음부터 한 작업과 테스트 코드를 정리한다.
+무엇을 바꿨는지, 왜 그렇게 했는지, 중간에 실패한 방법과 그 원인, 테스트를 어떻게 짜고 돌리는지를 담는다.
 
 - 같은 코드를 옮겨 온 `option-state-dash-bullet`([3])에도 같은 수정과 테스트가 들어 있다.
-무엇을 바꿨는지, 왜 그렇게 했는지, 중간에 실패한 방법과 그 원인, 테스트를 어떻게 짜고 돌리는지를 담는다.
+- **지금 설계는 12장이다.** 문단별 레이아웃 분할을 없애 여러 문제를 근원에서 지웠다.
+    - 3·4·5·11장은 그 이전 설계(문단마다 `ParagraphStyle`로 들여쓰기를 따로 주던 때)의 기록이다. 그때 만든 측정·보정 코드는 모두 지웠다.
+    - 실패와 원인을 남겨 두는 것은 같은 길을 다시 가지 않기 위해서다.
 
 ---
 
@@ -11,13 +14,13 @@
 
 | 주제 | 요구 | 최종 상태 |
 |---|---|---|
-| 커서 고정 | `xxx:` 뒤에 공백을 쳐서 알약이 생겨도 커서가 튀지 않아야 한다 | 본문 시작 x를 일반 문단일 때와 같게 맞춘다. 실측 오차 0.01px 미만 |
+| 커서 고정 | `xxx:` 뒤에 공백을 쳐서 알약이 생겨도 커서가 튀지 않아야 한다 | 알약은 색과 배경만 바꿔 레이아웃이 일반 문단과 같다. 라벨·본문 글자 위치 차이 0 |
 | 알약 범위 | 알약은 `xxx:`까지만 덮고, 본문과 공백 한 칸을 띄운다 | `:` 뒤까지만 배경을 그린다. 공백은 원래 폭 그대로 |
-| 라벨 가운데 정렬 | 알약 안 라벨이 가운데에 와야 한다 | 왼쪽·오른쪽 여백 차이 최대 1px (Android가 들여쓰기를 정수 px로만 받기 때문) |
-| 복사·잘라내기 | 붙여넣기 → 잘라내기 → 다시 붙여넣기 해도 화면이 같아야 한다 | 줄바꿈이 공백으로 바뀌던 버그를 고쳤다. 테스트로 확인한다 |
-| 원본 보존 | 화면 처리 때문에 저장값이 바뀌면 안 된다 | 화면 처리는 OutputTransformation 안에서만 한다. 테스트로 확인한다 |
+| 라벨 가운데 정렬 | 알약 안 라벨이 가운데에 와야 한다 | 좌우 여백이 둘 다 투명한 `:` 폭이라 구조상 같다. 그려진 픽셀로 확인한다 |
+| 복사·잘라내기 | 붙여넣기 → 잘라내기 → 다시 붙여넣기 해도 화면이 같아야 한다 | 화면 텍스트가 저장값과 같아 보정 없이 맞다. 테스트로 확인한다 |
+| 원본 보존 | 화면 처리 때문에 저장값이 바뀌면 안 된다 | 화면 처리는 OutputTransformation 안에서 색만 바꾼다. 테스트로 확인한다 |
 | 메모장 같은 커서 | 본문에서 알약 쪽으로 드래그해도 커서가 순간이동하지 않아야 한다 | 알약 안 커서 규칙을 없앴다. 라벨도 일반 글자처럼 커서·선택된다. 테스트로 확인한다 |
-| 문단 탭 | 문단 오른쪽 빈 곳을 누르면 그 문단에 커서가 와야 한다 | 다음 문단 맨 앞으로 가던 버그를 고쳤다. 테스트로 확인한다 |
+| 문단 탭·손잡이 | 문단 오른쪽 빈 곳을 누르거나 손잡이를 거기로 끌면 그 문단 끝에 와야 한다 | 레이아웃 하나라 일반 텍스트 필드와 같다. 테스트와 실기기로 확인한다 |
 
 이 세션의 커밋(오래된 것부터):
 
@@ -35,6 +38,9 @@
 | `e163635` | 알약 배치 규칙 테스트 (`PillLayoutTest`) |
 | `acf4e7f` | 알약 안 커서 규칙(`KeepCursorOutOfPill`) 제거, 커서 테스트 (`PillCursorTest`) |
 | `154bcd7` | 문단 오른쪽 빈 곳을 누르면 커서가 다음 문단 맨 앞으로 가던 버그 수정 (`ParagraphEndTapFix`), 탭 테스트 (`ParagraphTapTest`) |
+| `3e5986e` | 작업 기록을 `TEST_CODE.md`로 이름 바꾸고 문단 탭 내용 추가 |
+| `6114501` | 문단별 레이아웃 분할을 없애 탭·손잡이·복사 문제를 근원에서 제거. 측정·보정 코드 삭제, 테스트 개편 |
+| `0d8a4e1` | 같은 리팩터링을 [3] 대시 모듈에 적용 |
 
 ---
 
@@ -339,32 +345,31 @@ ffff: ssss
 
 ---
 
-## 8. 남은 제약
+## 8. 남은 제약 (12장 설계 기준)
 
-- 가운데 정렬은 최대 1px 차이가 날 수 있다(4장 최종 실측).
-- 자간이 있는 글자 스타일에서 `abc: `를 막 친 순간(본문이 아직 없을 때) 커서가 1px 미만 움직일 수 있다(3.5).
-- 넘침 폭이 g + `:` 폭보다 크면 가운데 정렬을 포기하고 커서 고정만 지킨다.
-- 라벨이 줄을 넘쳐 여러 줄이 되면 가운데 정렬하지 않는다.
-- `PillRestLineIndent.Pill`(넘친 줄을 본문 시작선에 맞춤)은 본문 시작을 정수로 올려 쓰므로 1px 안쪽 차이가 날 수 있다.
+- 알약은 불릿 자리 맨 왼쪽이 아니라 라벨 바로 앞(라벨 시작 x − 투명한 `:` 폭)에서 시작한다. 모든 문단의 들여쓰기가 같아서다.
+- 자간이 있는 글자 스타일에서는 투명한 `:`·공백 자리와 알약 문단 줄 끝 위치가 일반 문단보다 0.9px 다르다.
+    - 색 스타일 경계에서 Android가 글자 묶음(run)을 나눠 자간이 조금 달라진다. 라벨·본문 글자 위치는 그대로다.
+- 라벨이 줄을 넘쳐 여러 줄이 되면 줄마다 따로 그리고 가운데 정렬은 따지지 않는다.
 - 시각적 가운데는 커서 위치 기준이다. 글자 모양(글자 양옆의 빈 여백)에 따라 눈으로는 1~2px 치우쳐 보일 수 있다.
 
 ---
 
-## 9. 파일 지도
+## 9. 파일 지도 (12장 설계 기준)
 
-| 파일 | 이번 작업에서 한 일 |
+| 파일 | 역할 |
 |---|---|
-| `src/main/.../BulletListTextField.kt` | `measurePillLayout`, `fitScaleX`, `toAppliedIndent`, `PillLayout`, `pillColonStyle`, 라벨별 `LruCache`, 알약 배경 범위, `StoredTextClipboard` 연결 |
-| `src/main/.../BulletListTransformation.kt` | `bulletListOutputTransformation`이 `ParagraphLayout`을 받도록 변경, `KeepCursorOutOfPill` 제거 |
-| `src/main/.../StoredTextClipboard.kt` | 새 파일. 복사·잘라내기 때 저장값을 넣는 클립보드 |
-| `src/main/.../Pill.kt` | `PillStyle.startPadding` 제거(들여쓰기가 규칙으로 정해짐), `PillRange.backgroundEnd` |
+| `src/main/.../BulletListTextField.kt` | 필드. 들여쓰기 하나를 건 `textStyle`, 알약·선택·불릿 그리기 |
+| `src/main/.../BulletListTransformation.kt` | sentinel 규칙(InputTransformation), 알약 `:` 투명 처리와 끝 폭 0 문자(OutputTransformation), 문단 나누기 |
+| `src/main/.../Pill.kt` | `PillRange`, `pillRangeOf`, `PillStyle(color)` |
 | `src/main/.../OptionStatePillBulletKey.kt` | 화면 설명 문구 |
-| `src/androidTest/.../PasteCutRoundTripTest.kt` | 새 파일 |
-| `src/androidTest/.../PillLayoutTest.kt` | 새 파일 |
-| `src/androidTest/.../PillCursorTest.kt` | 새 파일 |
-| `src/main/.../ParagraphEndTapFix.kt` | 새 파일. 문단 오른쪽 탭 보정 |
-| `src/androidTest/.../ParagraphTapTest.kt` | 새 파일 |
+| `src/androidTest/.../PasteCutRoundTripTest.kt` | 붙여넣기 → 잘라내기 → 다시 붙여넣기 화면 동일성 |
+| `src/androidTest/.../PillLayoutTest.kt` | 알약이 레이아웃을 바꾸지 않는지, 그려진 알약의 좌우 여백이 같은지 |
+| `src/androidTest/.../PillCursorTest.kt` | 알약 안 커서·선택·탭 |
+| `src/androidTest/.../ParagraphTapTest.kt` | 문단 탭·위치→offset·길게 눌러 끌기 |
 | `build.gradle.kts` | instrumented 테스트 설정 |
+
+지운 파일: `StoredTextClipboard.kt`(5장), `ParagraphEndTapFix.kt`(11장). 12장 설계에서는 필요 없다.
 
 ---
 
@@ -433,7 +438,71 @@ ffff: ssss
 
 ---
 
-## 12. 실기기로 확인할 때 쓴 방법
+## 12. 근원 제거 — 문단별 레이아웃 분할 없애기 (`6114501`, `0d8a4e1`)
+
+### 계기
+
+11장의 탭 보정은 선택 손잡이를 고치지 못했다. 손잡이까지 고치려고 문단 끝 공백을 화면보다 아주 넓게 그리는 방법도 실험했다. 하지만 빈 문단의 높이가 0이 되는 새 부작용이 생겼다. 증상마다 보정 코드를 덧대는 방식이 한계라는 판단으로 근원을 찾았다.
+
+### 근원
+
+평범한 TextField에는 이 문제들이 없다. 이 모듈이 한 두 가지가 원인이었다.
+
+1. 알약 문단만 첫 줄 들여쓰기를 다르게 주려고, 문단마다 `ParagraphStyle`을 걸었다.
+2. Compose(`MultiParagraphIntrinsics`)는 `ParagraphStyle` 범위마다 Android 레이아웃을 따로 만든다.
+    - `\n`을 남기면 문단마다 빈 줄이 더 생긴다. 실기기 측정: 4줄 글이 7줄로 그려졌다.
+    - 그래서 `\n`을 공백으로 바꿨는데, 그 공백이 화면 텍스트에 들어갔다.
+
+여기서 아래 증상이 모두 나왔다.
+
+| 증상 | 이전 보정 |
+|---|---|
+| 문단 오른쪽 탭·손잡이가 다음 문단 맨 앞으로 감 | `ParagraphEndTapFix`(손잡이는 못 고침) |
+| 복사·잘라내기 글에서 줄바꿈이 공백으로 바뀜 | `StoredTextClipboard` |
+| 알약 가운데 정렬·커서 고정을 맞추려 들여쓰기를 계산 | `measurePillLayout`·`fitScaleX`·`toAppliedIndent`(4장) |
+
+### 해결
+
+문단별 분할을 없앴다. 일반 TextField와 똑같이 `\n`을 그대로 둔 레이아웃 하나로 그린다.
+
+- 들여쓰기는 `textStyle` 하나에 같은 g로 건다. Android는 `\n` 문단마다 첫 줄을 들여쓴다.
+- OutputTransformation은 두 가지만 한다.
+    - 알약의 `:`를 투명하게 칠한다(색 스타일). 레이아웃은 그대로다.
+    - 텍스트가 `\n`으로 끝나면 끝에 폭 0 문자를 붙인다. Android는 끝의 빈 문단에는 들여쓰기를 걸지 않기 때문이다(실기기에서 x = 0 확인). 맨 끝이라 앞쪽 offset은 그대로다.
+- 알약은 `[라벨 시작 x − c, : 뒤 x]`로 그린다. c는 투명한 `:` 폭이다.
+    - 오른쪽 여백은 투명한 `:` 자체다. 왼쪽 여백도 c라 라벨이 늘 정확히 가운데에 온다. 계산이 없다.
+    - 레이아웃이 일반 문단과 같아, 공백을 쳐서 알약이 생겨도 글자·커서가 움직이지 않는다.
+- 바뀐 모양: 알약이 불릿 자리 맨 왼쪽(x = 0, 넘침 폭)이 아니라 라벨 바로 앞 여백부터 시작한다. 그래서 `PillStyle.overflow`와 `restLineIndent`도 없앴다.
+
+지운 코드: 문단별 `ParagraphStyle`, `PARAGRAPH_BREAK`, `ParagraphLayout`, `measurePillLayout`, `fitScaleX`, `toAppliedIndent`, 라벨별 `LruCache`, `StoredTextClipboard`, `ParagraphEndTapFix`. `BulletListTextField.kt`가 574줄에서 318줄로 줄었고, `StoredTextClipboard.kt`·`ParagraphEndTapFix.kt`가 없어졌다.
+
+### 실기기 확인
+
+- `abc:`에서 공백을 치면 라벨은 제자리, 둘레에 알약이 생기고 커서는 공백 한 칸만큼만 움직인다.
+- 단어를 길게 눌러 선택한 뒤 끝 손잡이를 다음 줄 오른쪽 끝까지 끌면, 선택이 그 줄 끝에서 멈춘다. 다음 문단으로 넘어가지 않는다.
+
+### 테스트
+
+| 테스트 | 확인하는 것 |
+|---|---|
+| `PillLayoutTest.pillDoesNotChangeTextLayout` | 알약 문단 글자 위치가 같은 글을 그냥 들여써 그린 layout과 같다. 라벨·본문 글자는 0.01px, 구분자 자리·줄 끝은 1px 이내. 저장값도 그대로다 |
+| `PillLayoutTest.drawnPillCentersLabel` | 캡처한 픽셀에서 알약 배경 양 끝을 찾아, 라벨 앞뒤 여백 차이가 1.5px 이내다(픽셀 경계·안티에일리어싱만 허용) |
+| `ParagraphTapTest.tapRightOfParagraph_putsCursorAtItsEnd` | 문단(빈 문단 포함)마다 오른쪽 빈 곳을 탭하면 그 문단 끝 |
+| `ParagraphTapTest.tapLeftOfParagraph_putsCursorAtItsStart` | 문단마다 왼쪽 끝을 탭하면 그 문단 맨 앞 |
+| `ParagraphTapTest.offsetForPosition_anywhereOnParagraphLine_staysInParagraph` | 문단 줄 위 모든 x(5px 간격)의 `getOffsetForPosition`이 그 문단 안이다. 탭·끌기·선택 손잡이가 모두 이 계산을 쓴다 |
+| `ParagraphTapTest.longPressDragToRightOfParagraph_selectsUpToItsEnd` | 첫 문단 단어를 길게 눌러 4번째 문단 오른쪽 끝까지 끌면 선택이 4번째 문단 끝에서 멈춘다 |
+| `PasteCutRoundTripTest`, `PillCursorTest` | 보정 코드 없이 그대로 통과한다 |
+
+- 선택 손잡이는 별도 창(Popup)이라 테스트에서 직접 끌기 어렵다. 손잡이가 쓰는 계산(`getOffsetForPosition`) 자체와 같은 계산을 쓰는 끌기로 확인하고, 실기기에서 직접 끌어 확인했다.
+- 자간이 있는 스타일의 0.9px 차이(8장)는 `PillLayoutTest`가 구분자 자리·줄 끝에만 허용한다.
+
+### 테스트를 돌리다 겪은 일
+
+- 테스트가 "No compose hierarchies found"로 무더기 실패한 적이 있다. 폰이 절전(Dozing) 상태였다. `adb shell input keyevent KEYCODE_WAKEUP`, `adb shell svc power stayon true`로 화면을 켜 두고 돌린다.
+
+---
+
+## 13. 실기기로 확인할 때 쓴 방법
 
 다음에 비슷한 문제를 볼 때 참고한다.
 
