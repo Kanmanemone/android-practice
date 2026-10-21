@@ -1,5 +1,6 @@
 package com.example.swemobulletedlist.entry.optionstatepillbullet
 
+import android.util.LruCache
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
@@ -46,6 +48,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 /** 각 줄 앞에 그리는 Bullet (글머리 기호). 뒤 간격까지 포함한다. */
 private const val BULLET = "•  "
@@ -53,11 +58,24 @@ private const val BULLET = "•  "
 /** 선택이 문단 끝 `\n`을 넘어갈 때 그 줄 끝에 덧칠하는 폭의 기준 글자. 빈 문단도 선택된 게 보이게 한다. */
 private const val NEWLINE_MARK = " "
 
-/** 알약 자간을 잴 때 쓰는 라벨. 내용은 상관없고, 라벨 뒤 `: `가 어떻게 그려지는지만 본다. */
-private const val PILL_REFERENCE_LABEL = "a"
-
 /** 알약 `:` 가로 배율의 하한. 0 이하면 폭이 없거나 뒤집힌다. */
-private const val MIN_PILL_COLON_SCALE_X = 0.01f
+private const val MIN_PILL_SCALE_X = 0.01f
+
+/**
+ * 알약 배치를 잴 때 구분자 공백 뒤에 두는 본문 글자.
+ *
+ * - 공백이 줄 끝이 아니게 만들 뿐이라 어떤 글자든 된다.
+ */
+private const val PILL_BODY_PROBE = "x"
+
+/** [fitScaleX]가 배율을 재 보고 고치는 최대 횟수. */
+private const val PILL_SCALE_FIT_ITERATIONS = 4
+
+/** [fitScaleX]가 맞았다고 보는 폭 차이(px). */
+private const val PILL_SCALE_FIT_EPSILON = 0.01f
+
+/** 라벨별 [PillLayout]을 기억해 두는 개수. 화면에 동시에 보이는 알약 라벨 수보다 넉넉하면 된다. */
+private const val PILL_LAYOUT_CACHE_SIZE = 64
 
 /** 알약 배경을 줄 상자보다 위아래로 줄이는 폭. 위아래 줄의 알약끼리 붙어 보이지 않게 한다. */
 private val PILL_VERTICAL_INSET = 2.dp
@@ -134,63 +152,42 @@ internal fun BulletListTextField(
     val indentedTextStyle = remember(textStyle, defaultIndent) { textStyle.copy(textIndent = defaultIndent) }
 
     /**
-     * 알약 문단에서 구분자의 `:`에 거는 스타일.
+     * 라벨별 [PillLayout]. 라벨마다 한 번 재서 기억한다([measurePillLayout]).
      *
-     * - 투명하게 칠해 숨긴다. 투명한 `:`가 알약 오른쪽 안쪽 여백이 된다.
-     * - `:`의 가로 배율(`scaleX`)로 눈에 보이는 왼쪽 여백과 오른쪽 여백을 같게 맞춘다. 그러면 라벨이 알약 가운데에 온다.
-     *     - 왼쪽 여백 = 넘침 폭([PillStyle.overflow]) + 첫 줄 들여쓰기. 알약 배경은 왼쪽으로 넘침 폭만큼 더 그려진다.
-     *     - 오른쪽 여백 = 투명한 `:`의 폭.
-     *     - 첫 줄 들여쓰기는 본문 시작에서 거꾸로 정하므로, `:`를 넓히면 그만큼 들여쓰기가 줄어든다.
-     * - 자간(`letterSpacing`)은 쓰지 않는다. Android는 자간을 글자 앞뒤로 반씩 나눠 붙여, 절반가량이 뒤 공백 폭으로 새어 나간다.
-     *     - 그러면 알약과 본문 사이가 공백 두 칸처럼 넓어진다. 가로 배율은 그 글자 폭만 바꾼다.
-     * - 배율은 공식으로 구하지 않고, 두 값으로 재 본 뒤 직선으로 풀어서 구한다.
-     * - 넘침 폭이 너무 커서 `:`를 0보다 좁혀야 하면 가운데 정렬을 포기한다. 이때는 알약이 생길 때 커서가 오른쪽으로 밀린다.
+     * - OutputTransformation은 글자를 칠 때마다 모든 문단에 돈다. 같은 라벨을 매번 다시 재지 않게 한다.
+     * - 재는 기준(글꼴·g·넘침 폭)이 바뀌면 통째로 새로 만든다.
      */
-    val pillColonStyle = remember(textMeasurer, textStyle, bulletIndentPx, pillStyle.overflow, density) {
+    val pillLayouts = remember(textMeasurer, textStyle, bulletIndentPx, pillStyle.overflow, density) {
         val overflowPx = with(density) { pillStyle.overflow.toPx() }
-        val bodyStart = bulletIndentPx + textMeasurer.measure(PILL_REFERENCE_LABEL + PILL_DELIMITER, textStyle).endX()
-
-        /** 배율이 [scaleX]일 때 (오른쪽 여백 + 라벨 시작부터 본문 시작까지 폭). 가운데 정렬이면 넘침 폭 + 본문 시작과 같다. */
-        fun measure(scaleX: Float): Float {
-            val colonStyle = SpanStyle(textGeometricTransform = TextGeometricTransform(scaleX = scaleX))
-            val layout = textMeasurer.measure(pillText(PILL_REFERENCE_LABEL, colonStyle), textStyle)
-            val labelEnd = layout.getHorizontalPosition(PILL_REFERENCE_LABEL.length, usePrimaryDirection = true)
-            val colonEnd = layout.getHorizontalPosition(PILL_REFERENCE_LABEL.length + 1, usePrimaryDirection = true)
-            return (colonEnd - labelEnd) + layout.endX()
+        val toAppliedIndent = { px: Float -> density.toAppliedIndent(px) }
+        val appliedBulletIndent = toAppliedIndent(bulletIndentPx)
+        object : LruCache<String, PillLayout>(PILL_LAYOUT_CACHE_SIZE) {
+            override fun create(label: String) =
+                measurePillLayout(label, textMeasurer, textStyle, appliedBulletIndent, overflowPx, toAppliedIndent)
         }
-
-        val atOne = measure(1f)
-        val slope = measure(2f) - atOne // 배율 1당 늘어나는 폭
-        val scaleX = (1f + (overflowPx + bodyStart - atOne) / slope).coerceAtLeast(MIN_PILL_COLON_SCALE_X)
-        SpanStyle(color = Color.Transparent, textGeometricTransform = TextGeometricTransform(scaleX = scaleX))
     }
 
     /**
      * 문단마다 들여쓰기를 거는 [bulletListOutputTransformation].
      *
-     * - 알약 문단의 첫 줄은 본문 시작 x가 일반 문단일 때와 같아지도록 거꾸로 계산한다.
-     *     - 본문 시작 = g + `라벨: ` 폭. 공백을 친 직후 커서가 있던 자리다.
-     *     - 첫 줄 들여쓰기 = 본문 시작 - [pillColonStyle]을 건 `라벨: ` 폭. 이 값이 알약 왼쪽 안쪽 여백이 된다.
-     *     - 들여쓰기는 layout 전에 정해야 해서 layout 결과를 쓸 수 없다. 그래서 [textStyle]로 미리 잰다.
-     *     - 자간을 계산으로 맞추지 않고 재는 이유: 자간이 실제로 더해지는 방식이 플랫폼마다 조금씩 달라도 본문 시작은 정확히 맞는다.
+     * - 알약 문단은 [pillLayouts]에서 첫 줄 들여쓰기와 `:` 배율을 가져온다.
      * - 알약 문단의 넘친 줄(r)은 [PillStyle.restLineIndent]를 따른다.
      * - 나머지 문단은 g만큼 들여쓴다.
      */
-    val outputTransformation = remember(defaultIndent, pillColonStyle, pillStyle.restLineIndent, textMeasurer, textStyle, density) {
-        bulletListOutputTransformation(pillColonStyle) { text, start, end ->
-            val pill = text.pillRangeOf(start, end) ?: return@bulletListOutputTransformation defaultIndent
-            val label = text.substring(pill.labelStart, pill.labelEnd)
-            val bodyStart = bulletIndentPx + textMeasurer.measure(label + PILL_DELIMITER, textStyle).endX()
-            val pillTextWidth = textMeasurer.measure(pillText(label, pillColonStyle), textStyle).endX()
-            with(density) {
+    val outputTransformation = remember(defaultIndent, pillLayouts, pillStyle.restLineIndent, density) {
+        bulletListOutputTransformation { text, start, end ->
+            val pill = text.pillRangeOf(start, end) ?: return@bulletListOutputTransformation ParagraphLayout(defaultIndent)
+            val layout = pillLayouts[text.substring(pill.labelStart, pill.labelEnd)]
+            val indent = with(density) {
                 TextIndent(
-                    firstLine = (bodyStart - pillTextWidth).toSp(),
+                    firstLine = layout.firstLineIndent.toSp(),
                     restLine = when (pillStyle.restLineIndent) {
                         PillRestLineIndent.Bullet -> bulletIndentSp
-                        PillRestLineIndent.Pill -> bodyStart.toSp()
+                        PillRestLineIndent.Pill -> layout.bodyStart.toSp()
                     },
                 )
             }
+            ParagraphLayout(indent, pillColonStyle = pillColonStyle(layout.colonScaleX))
         }
     }
 
@@ -449,6 +446,119 @@ private fun pillText(label: String, colonStyle: SpanStyle) = buildAnnotatedStrin
     withStyle(colonStyle) { append(PILL_DELIMITER.take(1)) }
     append(PILL_DELIMITER.drop(1))
 }
+
+/**
+ * 알약 문단에서 구분자의 `:`에 거는 스타일.
+ *
+ * - 투명하게 칠해 숨긴다. 투명한 `:`가 알약 오른쪽 안쪽 여백이 된다.
+ * - 폭은 가로 배율([scaleX])로 맞춘다.
+ *     - 자간(`letterSpacing`)은 쓰지 않는다. Android는 자간을 글자 앞뒤로 반씩 나눠 붙여, 절반가량이 뒤 공백 폭으로 새어 나간다.
+ *     - 가로 배율은 그 글자의 폭에 배율을 곱할 뿐이라, 다른 글자에 영향이 없다.
+ */
+private fun pillColonStyle(scaleX: Float) =
+    SpanStyle(color = Color.Transparent, textGeometricTransform = TextGeometricTransform(scaleX = scaleX))
+
+/**
+ * 알약 문단 앞부분(`라벨: `)의 배치. 값은 문단 왼쪽 끝(불릿 자리 시작)이 0인 px이다.
+ *
+ * @property firstLineIndent 첫 줄 들여쓰기로 넘길 값. Android가 정수로 올려 쓰며, 그 결과가 라벨 글자의 시작 x다.
+ * @property bodyStart 본문 시작 x. 일반 문단일 때 `라벨: ` 뒤 커서가 있던 자리와 같다.
+ * @property colonScaleX 투명한 `:`의 가로 배율([pillColonStyle]).
+ */
+private class PillLayout(val firstLineIndent: Float, val bodyStart: Float, val colonScaleX: Float)
+
+/**
+ * [label]의 알약 배치를 잰다.
+ *
+ * - 두 가지를 맞춘다. 앞의 것이 우선이다.
+ *     1. 본문 시작 = g + `라벨: ` 폭. 공백을 쳐서 알약이 생겨도 커서가 움직이지 않는다. 정확히 맞춘다.
+ *     2. 왼쪽 여백 = 오른쪽 여백. 라벨이 알약 가운데에 온다. 1px 안쪽으로 맞춘다.
+ *         - 왼쪽 여백 = 넘침 폭 + 첫 줄 들여쓰기. 알약 배경은 왼쪽으로 넘침 폭만큼 더 그려진다.
+ *         - 오른쪽 여백 = 투명한 `:`의 폭.
+ * - 정할 값은 첫 줄 들여쓰기 p와 `:` 폭이다. 본문 시작 = p + 라벨 폭 + `:` 폭 + 공백 폭이다.
+ *     1. p = (본문 시작 - 라벨 폭 - 공백 폭 - 넘침 폭) / 2. 두 조건을 함께 풀어 나온다.
+ *         - Android는 들여쓰기를 정수 px로 올려 쓴다. 그래서 목표에 가장 가까운 정수 n을 고르고, n - 0.5를 넘겨 n으로 올라가게 한다.
+ *         - 정수 n을 그대로 넘기면 sp를 거치는 변환 오차(특히 비선형 글꼴 배율)로 n보다 조금 커져 n + 1로 올라갈 수 있다.
+ *         - 이어지는 계산은 실제로 쓰일 값([toAppliedIndent])으로 한다.
+ *         - 이 반올림 때문에 조건 2가 1px 안쪽으로 어긋날 수 있다.
+ *     2. `:` 폭 = 본문 시작 - p - 라벨 폭 - 공백 폭. 조건 1이다.
+ * - `:` 폭은 가로 배율로 맞추고, 배율은 재 보면서 고친다([fitScaleX]).
+ *     - 공백은 가로 배율이 먹지 않아 원래 폭 그대로 둔다.
+ * - 넘침 폭이 너무 커서 p가 0보다 작으면, p를 0으로 둔다. 조건 1만 맞고 라벨은 오른쪽으로 치우친다.
+ * - 들여쓰기는 layout 전에 정해야 해서 layout 결과를 쓸 수 없다. 그래서 [textStyle]로 미리 잰다.
+ *     - 화면과 같은 모양으로 잰다. `:`에 스타일을 걸어 화면과 같은 자리에서 글자 묶음(run)이 나뉘게 하고, 공백 뒤에 본문 글자를 하나 둔다.
+ *     - 공백이 줄 끝이면 Android가 자간을 덜 붙여, 본문이 있을 때와 폭이 다르다. 화면에 오래 남는 쪽(본문이 있을 때)에 맞춘다.
+ *
+ * @param bulletIndent 일반 문단 들여쓰기(g). Android가 실제로 쓰는 정수 값이어야 한다.
+ * @param toAppliedIndent 들여쓰기로 넘긴 px를 Android가 실제로 쓰는 px로 바꾼다.
+ */
+private fun measurePillLayout(
+    label: String,
+    textMeasurer: TextMeasurer,
+    textStyle: TextStyle,
+    bulletIndent: Float,
+    overflow: Float,
+    toAppliedIndent: (Float) -> Float,
+): PillLayout {
+    val colonOffset = label.length
+    val bodyOffset = label.length + PILL_DELIMITER.length
+    fun TextLayoutResult.x(offset: Int) = getHorizontalPosition(offset, usePrimaryDirection = true)
+    fun measure(colonScaleX: Float) = textMeasurer.measure(
+        buildAnnotatedString {
+            append(pillText(label, pillColonStyle(colonScaleX)))
+            append(PILL_BODY_PROBE)
+        },
+        textStyle,
+    )
+
+    val bodyStart = bulletIndent + textMeasurer.measure(label + PILL_DELIMITER + PILL_BODY_PROBE, textStyle).x(bodyOffset)
+    val unscaled = measure(1f)
+    val labelWidth = unscaled.x(colonOffset)
+    val spaceWidth = unscaled.x(bodyOffset) - unscaled.x(colonOffset + 1)
+
+    val targetIndent = (bodyStart - labelWidth - spaceWidth - overflow).coerceAtLeast(0f) / 2
+    val requestedIndent = (targetIndent.roundToInt() - 0.5f).coerceAtLeast(0f) // 올려 쓰이므로 반 px 아래를 넘긴다
+    val indent = toAppliedIndent(requestedIndent) // p
+
+    val colonScaleX = fitScaleX(bodyStart - indent - labelWidth - spaceWidth) { scaleX ->
+        measure(scaleX).let { it.x(colonOffset + 1) - it.x(colonOffset) }
+    }
+    return PillLayout(requestedIndent, bodyStart, colonScaleX)
+}
+
+/**
+ * 글자 폭이 [target]에 가장 가까워지는 가로 배율을 찾는다.
+ *
+ * - 배율 1에서 시작해, 잰 폭과 목표의 비율만큼 배율을 고치기를 몇 번 되풀이한다.
+ *     - 가로 배율은 폭에 거의 비례하므로 보통 한두 번이면 맞는다.
+ *     - 글자 폭을 정수 px로 그리면 정확히 맞지 않을 수 있다. 그래서 되풀이 중 가장 가까웠던 배율을 고른다.
+ *
+ * @param widthAt 배율을 받아 그 배율로 그린 글자 폭을 잰다.
+ */
+private inline fun fitScaleX(target: Float, widthAt: (scaleX: Float) -> Float): Float {
+    var scaleX = 1f
+    var bestScaleX = 1f
+    var bestError = Float.MAX_VALUE
+    repeat(PILL_SCALE_FIT_ITERATIONS) {
+        val width = widthAt(scaleX)
+        val error = abs(width - target)
+        if (error < bestError) {
+            bestScaleX = scaleX
+            bestError = error
+        }
+        if (error < PILL_SCALE_FIT_EPSILON || width <= 0f) return bestScaleX
+        scaleX = (scaleX * target / width).coerceAtLeast(MIN_PILL_SCALE_X)
+    }
+    return bestScaleX
+}
+
+/**
+ * 들여쓰기로 넘긴 [px]를 Android가 실제로 쓰는 px로 바꾼다.
+ *
+ * - Compose는 `TextIndent`(sp)를 px로 바꾼 뒤 정수로 올려(`ceil`) Android에 넘긴다. 그 과정을 똑같이 따른다.
+ * - 같은 [Density]로 sp를 거쳐 계산해, 변환 중 생기는 작은 오차까지 실제와 같게 나온다.
+ */
+private fun Density.toAppliedIndent(px: Float): Float = ceil(px.toSp().toPx())
 
 /** 텍스트 맨 끝 offset의 커서 x. `size.width`와 달리 끝 공백 폭까지 들어간다. */
 private fun TextLayoutResult.endX(): Float =

@@ -60,23 +60,21 @@ internal val BulletListInputTransformation: InputTransformation by lazy { // 아
 /**
  * 불릿 리스트의 [OutputTransformation]을 만든다. 화면에 보일 텍스트만 고치고, 저장값은 건드리지 않는다.
  *
- * - 문단마다 [indentOf]가 돌려준 들여쓰기로 [ParagraphStyle]을 건다.
+ * - 문단마다 [layoutOf]가 돌려준 들여쓰기로 [ParagraphStyle]을 건다.
  *     - 범위는 문단 시작부터 그 문단을 끝내는 `\n`까지다. 모든 문단에 빠짐없이 건다.
  *     - 문단을 끝내는 `\n`은 [PARAGRAPH_BREAK]로 바꾼다. 문단 나눔은 스타일 범위 경계가 맡는다.
  *     - `\n`을 그대로 두면, 스타일 범위가 갈리는 곳마다 Compose가 문단을 따로 떼어 레이아웃해 빈 줄이 하나 더 생긴다.
  * - 텍스트가 `\n`으로 끝나면, 화면용 텍스트 끝에 폭 0 문자([SENTINEL]과 같은 문자)를 하나 붙인다.
  *     - 그러지 않으면 마지막 빈 문단은 글자가 없어 스타일 범위가 비고, 들여쓰기가 걸리지 않는다.
  *     - 그러면 그 줄만 커서가 왼쪽 끝에 붙고, 불릿은 왼쪽 밖에 그려져 보이지 않는다.
- * - 알약 문단([pillRangeOf])은 구분자의 `:`에 [pillColonStyle]을 건다. 공백은 그대로 둔다.
+ * - 알약 문단([pillRangeOf])은 구분자의 `:`에 [ParagraphLayout.pillColonStyle]을 건다. 공백은 그대로 둔다.
  *     - 글자를 빼지 않아 화면 offset이 저장값과 그대로 같다.
  * - 판단은 텍스트 내용으로만 한다. layout보다 먼저 돌기 때문이다.
  *
- * @param pillColonStyle 알약 문단의 구분자 `:`에 거는 스타일. 투명하게 칠하고 폭을 맞춘다.
- * @param indentOf 문단 범위(`start` ~ `end`, `end`는 `\n` 직전)를 받아 그 문단의 들여쓰기를 돌려준다.
+ * @param layoutOf 문단 범위(`start` ~ `end`, `end`는 `\n` 직전)를 받아 그 문단의 [ParagraphLayout]을 돌려준다.
  */
 internal fun bulletListOutputTransformation(
-    pillColonStyle: SpanStyle,
-    indentOf: (text: CharSequence, start: Int, end: Int) -> TextIndent,
+    layoutOf: (text: CharSequence, start: Int, end: Int) -> ParagraphLayout,
 ) = OutputTransformation {
     if (length > 0 && charAt(length - 1) == '\n') {
         append(SENTINEL)
@@ -90,12 +88,20 @@ internal fun bulletListOutputTransformation(
     }
     forEachParagraph(text) { start, end ->
         val styleEnd = if (end < text.length) end + 1 else end // 문단을 끝내는 `\n` 자리까지
-        addStyle(ParagraphStyle(textIndent = indentOf(text, start, end)), start, styleEnd)
-        text.pillRangeOf(start, end)?.let { pill ->
-            addStyle(pillColonStyle, pill.labelEnd, pill.backgroundEnd)
-        }
+        val layout = layoutOf(text, start, end)
+        addStyle(ParagraphStyle(textIndent = layout.indent), start, styleEnd)
+        val pill = text.pillRangeOf(start, end) ?: return@forEachParagraph
+        layout.pillColonStyle?.let { addStyle(it, pill.labelEnd, pill.backgroundEnd) }
     }
 }
+
+/**
+ * [bulletListOutputTransformation]이 문단 하나에 거는 스타일.
+ *
+ * @property indent 문단 들여쓰기.
+ * @property pillColonStyle 알약 문단에서 구분자의 `:`에 거는 스타일. 투명하게 칠하고 폭을 맞춘다. 일반 문단은 `null`이다.
+ */
+internal class ParagraphLayout(val indent: TextIndent, val pillColonStyle: SpanStyle? = null)
 
 /**
  * [text]를 `\n` 기준 문단으로 나눠 앞에서부터 [block]을 부른다.
