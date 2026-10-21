@@ -38,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextGeometricTransform
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
@@ -52,6 +53,9 @@ private const val NEWLINE_MARK = " "
 
 /** 알약 자간을 잴 때 쓰는 라벨. 내용은 상관없고, 라벨 뒤 `: `가 어떻게 그려지는지만 본다. */
 private const val PILL_REFERENCE_LABEL = "a"
+
+/** 알약 `:` 가로 배율의 하한. 0 이하면 폭이 없거나 뒤집힌다. */
+private const val MIN_PILL_COLON_SCALE_X = 0.01f
 
 /** 알약 배경을 줄 상자보다 위아래로 줄이는 폭. 위아래 줄의 알약끼리 붙어 보이지 않게 한다. */
 private val PILL_VERTICAL_INSET = 2.dp
@@ -130,33 +134,32 @@ internal fun BulletListTextField(
      * 알약 문단에서 구분자의 `:`에 거는 스타일.
      *
      * - 투명하게 칠해 숨긴다. 투명한 `:`가 알약 오른쪽 안쪽 여백이 된다.
-     * - 자간(`letterSpacing`)으로 눈에 보이는 왼쪽 여백과 오른쪽 여백을 같게 맞춘다. 그러면 라벨이 알약 가운데에 온다.
+     * - `:`의 가로 배율(`scaleX`)로 눈에 보이는 왼쪽 여백과 오른쪽 여백을 같게 맞춘다. 그러면 라벨이 알약 가운데에 온다.
      *     - 왼쪽 여백 = 넘침 폭([PillStyle.overflow]) + 첫 줄 들여쓰기. 알약 배경은 왼쪽으로 넘침 폭만큼 더 그려진다.
      *     - 오른쪽 여백 = 투명한 `:`의 폭.
      *     - 첫 줄 들여쓰기는 본문 시작에서 거꾸로 정하므로, `:`를 넓히면 그만큼 들여쓰기가 줄어든다.
-     * - 자간 값은 공식으로 구하지 않고, 두 값으로 재 본 뒤 직선으로 풀어서 구한다.
-     *     - Android는 자간을 글자 앞뒤로 반씩 나눠 붙인다. 그래서 `:`에 건 자간의 절반가량이 뒤따르는 공백 폭으로 들어간다.
-     *     - 이렇게 나뉘는 비율은 플랫폼이 정하므로, 직접 재는 쪽이 정확하다.
+     * - 자간(`letterSpacing`)은 쓰지 않는다. Android는 자간을 글자 앞뒤로 반씩 나눠 붙여, 절반가량이 뒤 공백 폭으로 새어 나간다.
+     *     - 그러면 알약과 본문 사이가 공백 두 칸처럼 넓어진다. 가로 배율은 그 글자 폭만 바꾼다.
+     * - 배율은 공식으로 구하지 않고, 두 값으로 재 본 뒤 직선으로 풀어서 구한다.
+     * - 넘침 폭이 너무 커서 `:`를 0보다 좁혀야 하면 가운데 정렬을 포기한다. 이때는 알약이 생길 때 커서가 오른쪽으로 밀린다.
      */
     val pillColonStyle = remember(textMeasurer, textStyle, bulletIndentPx, pillStyle.overflow, density) {
         val overflowPx = with(density) { pillStyle.overflow.toPx() }
         val bodyStart = bulletIndentPx + textMeasurer.measure(PILL_REFERENCE_LABEL + PILL_DELIMITER, textStyle).endX()
 
-        /** 자간이 [spacingPx]일 때 (오른쪽 여백 + 라벨 시작부터 본문 시작까지 폭). 가운데 정렬이면 넘침 폭 + 본문 시작과 같다. */
-        fun measure(spacingPx: Float): Float {
-            val colonStyle = SpanStyle(letterSpacing = with(density) { spacingPx.toSp() })
+        /** 배율이 [scaleX]일 때 (오른쪽 여백 + 라벨 시작부터 본문 시작까지 폭). 가운데 정렬이면 넘침 폭 + 본문 시작과 같다. */
+        fun measure(scaleX: Float): Float {
+            val colonStyle = SpanStyle(textGeometricTransform = TextGeometricTransform(scaleX = scaleX))
             val layout = textMeasurer.measure(pillText(PILL_REFERENCE_LABEL, colonStyle), textStyle)
             val labelEnd = layout.getHorizontalPosition(PILL_REFERENCE_LABEL.length, usePrimaryDirection = true)
             val colonEnd = layout.getHorizontalPosition(PILL_REFERENCE_LABEL.length + 1, usePrimaryDirection = true)
             return (colonEnd - labelEnd) + layout.endX()
         }
 
-        val probe = bulletIndentPx // 재 볼 자간. 0이 아니면 되고, 크기가 비슷해야 오차가 작다.
-        val atProbe = measure(probe)
-        val atDoubleProbe = measure(probe * 2)
-        val slope = (atDoubleProbe - atProbe) / probe
-        val spacing = probe + (overflowPx + bodyStart - atProbe) / slope
-        SpanStyle(color = Color.Transparent, letterSpacing = with(density) { spacing.toSp() })
+        val atOne = measure(1f)
+        val slope = measure(2f) - atOne // 배율 1당 늘어나는 폭
+        val scaleX = (1f + (overflowPx + bodyStart - atOne) / slope).coerceAtLeast(MIN_PILL_COLON_SCALE_X)
+        SpanStyle(color = Color.Transparent, textGeometricTransform = TextGeometricTransform(scaleX = scaleX))
     }
 
     /**
