@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.input.KeyboardActionHandler
 import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.then
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.runtime.Composable
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
@@ -82,8 +84,9 @@ private val PILL_VERTICAL_INSET = 2.dp
  * - 선택 하이라이트도 직접 그린다. 기본 하이라이트는 가운데 줄을 줄 전체 폭으로 칠해 불릿을 덮기 때문이다.
  *     - 기본 하이라이트는 `LocalTextSelectionColors`의 `backgroundColor`를 투명으로 바꿔 끈다. 손잡이 색은 그대로 둔다.
  *     - 칠하는 색은 호출부의 `LocalTextSelectionColors`에서 가져온다. 테마의 선택 색이 그대로 쓰인다.
+ * - 복사·잘라내기는 저장값을 클립보드에 넣는다([StoredTextClipboard]). 기본 동작은 화면용 텍스트를 넣어 문단이 합쳐진다.
  * - 파라미터는 `BasicTextField(state)`와 같다. 단, `inputTransformation`과 `outputTransformation`은 없다.
- *     - `inputTransformation`은 sentinel 규칙(`BulletListTransformation.kt`)이 차지한다.
+ *     - `inputTransformation`은 sentinel 규칙(`BulletListTransformation.kt`)과 클립보드용 편집 기록([StoredTextClipboard])이 차지한다.
  *     - `outputTransformation`은 문단별 들여쓰기(`BulletListTransformation.kt`)가 차지한다.
  * - [state]는 [rememberBulletListTextFieldState]로 만든 것이어야 한다. 맨 앞 sentinel을 전제로 동작하기 때문이다.
  * - 기본값도 `BasicTextField`와 같다. 테마 색(다크모드 등)이 필요하면 호출부가 [textStyle], [cursorBrush]로 넘긴다.
@@ -205,15 +208,27 @@ internal fun BulletListTextField(
         TextSelectionColors(handleColor = selectionColors.handleColor, backgroundColor = Color.Transparent)
     }
 
+    /** 복사·잘라내기 때 화면용 텍스트 대신 저장값을 넣는 클립보드. 문단 사이 `\n`이 공백으로 바뀌어 복사되지 않게 한다. */
+    val clipboard = LocalClipboard.current
+    val storedTextClipboard = remember(clipboard, state) { StoredTextClipboard(clipboard, state) }
+
+    /** sentinel 규칙 뒤에 [StoredTextClipboard.editRecorder]를 붙인다. 잘라내기 전 글을 클립보드가 알 수 있게 한다. */
+    val inputTransformation = remember(storedTextClipboard) {
+        BulletListInputTransformation.then(storedTextClipboard.editRecorder)
+    }
+
     var getTextLayout: (() -> TextLayoutResult?)? by remember { mutableStateOf(null) }
 
-    CompositionLocalProvider(LocalTextSelectionColors provides hiddenHighlightColors) {
+    CompositionLocalProvider(
+        LocalTextSelectionColors provides hiddenHighlightColors,
+        LocalClipboard provides storedTextClipboard,
+    ) {
         BasicTextField(
             state = state,
             modifier = modifier,
             enabled = enabled,
             readOnly = readOnly,
-            inputTransformation = BulletListInputTransformation,
+            inputTransformation = inputTransformation,
             outputTransformation = outputTransformation,
             textStyle = indentedTextStyle,
             keyboardOptions = keyboardOptions,

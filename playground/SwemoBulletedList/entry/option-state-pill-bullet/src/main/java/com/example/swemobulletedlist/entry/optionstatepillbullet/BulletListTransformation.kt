@@ -122,7 +122,6 @@ internal inline fun forEachParagraph(text: CharSequence, block: (start: Int, end
  */
 internal fun CharSequence.paragraphContentStart(start: Int): Int =
     if (start == 0 && length > 0 && this[0] == SENTINEL) 1 else start
-
 /* ───────────── Input 단계 ───────────── */
 
 /**
