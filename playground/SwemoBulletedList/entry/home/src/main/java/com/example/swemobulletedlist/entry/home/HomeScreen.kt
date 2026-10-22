@@ -1,4 +1,4 @@
-package com.example.swemobulletedlist.ui.optionlist
+package com.example.swemobulletedlist.entry.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,18 +22,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.swemobulletedlist.entry.api.MyNavKey
-import com.example.swemobulletedlist.ui.info.NavKeyInfoButton
-import com.example.swemobulletedlist.ui.info.NavKeyInfoDialog
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.swemobulletedlist.entry.api.EntryKey
+import com.example.swemobulletedlist.core.ui.ScreenInfoButton
+import com.example.swemobulletedlist.core.ui.ScreenInfoDialog
 
 @Composable
-fun OptionListScreen(
-    entries: List<MyNavKey>,
-    onSelect: (MyNavKey) -> Unit,
+fun HomeScreen(
     modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = hiltViewModel(),
 ) {
-    /** 정보 다이얼로그를 띄울 대상. `null`이면 닫힌 상태. */
-    var infoKey by remember { mutableStateOf<MyNavKey?>(null) }
+    val entryKeys = viewModel.entryKeys
+
+    var screenInfoKey by remember { mutableStateOf<EntryKey?>(null) }
+    screenInfoKey?.let { key ->
+        ScreenInfoDialog(
+            key = key,
+            onDismiss = {
+                screenInfoKey = null
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -43,10 +52,10 @@ fun OptionListScreen(
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (entries.isEmpty()) {
+        if (entryKeys.isEmpty()) {
             Text("아직 구현된 옵션이 없습니다.")
         } else {
-            entries.forEach { entry ->
+            entryKeys.forEach { entryKey ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -55,7 +64,7 @@ fun OptionListScreen(
                 ) {
                     TextButton(
                         onClick = {
-                            onSelect(entry)
+                            viewModel.navigateTo(entryKey)
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(50),
@@ -65,19 +74,15 @@ fun OptionListScreen(
                         ),
                     ) {
                         Text(
-                            text = entry.title,
+                            text = entryKey.title,
                             textAlign = TextAlign.Center,
                         )
                     }
-                    if (entry.description.isNotEmpty()) {
-                        NavKeyInfoButton(onClick = { infoKey = entry })
+                    if (entryKey.description.isNotEmpty()) {
+                        ScreenInfoButton(onClick = { screenInfoKey = entryKey })
                     }
                 }
             }
         }
-    }
-
-    infoKey?.let { key ->
-        NavKeyInfoDialog(key = key, onDismiss = { infoKey = null })
     }
 }

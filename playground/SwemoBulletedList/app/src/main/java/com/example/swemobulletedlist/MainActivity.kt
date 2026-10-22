@@ -5,7 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.navigation3.runtime.NavBackStack
-import com.example.swemobulletedlist.entry.api.MyNavKey
+import com.example.swemobulletedlist.entry.api.EntryKey
+import com.example.swemobulletedlist.ui.SwemoBulletedListApp
 import com.example.swemobulletedlist.ui.theme.SwemoBulletedListTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -14,17 +15,17 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject
-    lateinit var navBackStack: NavBackStack<MyNavKey>
+    lateinit var navBackStack: NavBackStack<EntryKey>
 
     @Inject
-    lateinit var entries: Set<@JvmSuppressWildcards MyNavKey>
+    lateinit var entryKeys: Set<@JvmSuppressWildcards EntryKey>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             SwemoBulletedListTheme {
-                SwemoBulletedListApp(navBackStack, entries)
+                SwemoBulletedListApp(navBackStack, entryKeys)
             }
         }
     }

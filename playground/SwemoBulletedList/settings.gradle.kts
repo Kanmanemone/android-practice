@@ -25,3 +25,5 @@ dependencyResolutionManagement {
 rootProject.name = "SwemoBulletedList"
 include(":app")
 include(":core:entry-api")
+include(":core:ui")
+include(":entry:home")
