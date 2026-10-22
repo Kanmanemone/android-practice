@@ -44,6 +44,7 @@ dependencies {
     implementation(project(":core:entry-api"))
     implementation(project(":core:ui"))
     implementation(project(":entry:home"))
+    implementation(project(":entry:plain-bulleted-list"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
