@@ -85,13 +85,27 @@ private val KeepCursorAfterSentinel = InputTransformation {
     }
 }
 
-/* ───────────── Output 단계 ───────────── */
-
-// OutputTransformation을 다루는 코드도 원래 여기에 있었음
-// 그러나 필요가 없어져서 제거
-// 추후 다시 짤 가능성도 있음
-
 /* ───────────── 헬퍼 ───────────── */
+
+/**
+ * [text]를 문단으로 나누고, 앞 문단부터 글자 범위를 [onParagraph]에 넘긴다.
+ *
+ * - 문단은 `\n`으로 자른 조각이다. 곧 불릿 하나가 붙는 항목 하나다.
+ * - `start`는 문단 첫 글자, `end`는 문단을 끝내는 `\n`(마지막 문단은 텍스트 끝)의 위치다. 빈 문단은 `start == end`다.
+ * - 맨 앞 [SENTINEL]은 범위에 넣지 않는다. 호출부는 sentinel을 몰라도 된다.
+ */
+internal fun forEachParagraph(
+    text: CharSequence,
+    onParagraph: (start: Int, end: Int) -> Unit,
+) {
+    var start = if (text.startsWith(SENTINEL)) 1 else 0
+    while (true) {
+        val newline = text.indexOf('\n', startIndex = start) // 없으면 -1
+        onParagraph(start, if (newline < 0) text.length else newline)
+        if (newline < 0) break
+        start = newline + 1
+    }
+}
 
 /** 버퍼가 [SENTINEL]로 시작하는지. */
 private fun TextFieldBuffer.startsWithSentinel(): Boolean = length > 0 && charAt(0) == SENTINEL
