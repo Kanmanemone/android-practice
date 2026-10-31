@@ -1,6 +1,7 @@
 package com.example.swemobulletedlist.entry.pill
 
 import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
@@ -83,6 +84,17 @@ private val KeepCursorAfterSentinel = InputTransformation {
     if (selection.min < 1) {
         selection = TextRange(selection.start.coerceAtLeast(1), selection.end.coerceAtLeast(1))
     }
+}
+
+/* ───────────── Output 단계 ───────────── */
+
+/**
+ * 불릿 리스트의 [OutputTransformation].
+ *
+ * - 글자는 바꾸지 않고 색만 칠한다. 그래서 화면 텍스트와 저장값이 똑같다.
+ */
+internal val BulletedListOutputTransformation = OutputTransformation {
+    hidePillColons() // Pill.kt
 }
 
 /* ───────────── 헬퍼 ───────────── */

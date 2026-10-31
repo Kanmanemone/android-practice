@@ -44,9 +44,12 @@ private const val BULLET = "•  "
  *     - 줄바꿈은 padding 안쪽 폭에서 일어나므로, 긴 줄이 넘어가도 글자 시작선에 맞춰진다.
  * - 파라미터는 `BasicTextField(state)`와 같다. 단, `inputTransformation`과 `outputTransformation`은 없다.
  *     - `inputTransformation`은 sentinel 규칙(`BulletedListTransformation.kt`)이 차지한다.
- *     - `outputTransformation`은 불릿을 그림으로 붙이므로 필요하지 않아 열어두지 않는다.
+ *     - `outputTransformation`은 Pill 라벨 뒤 `:` 숨기기(`Pill.kt`)가 차지한다.
  * - [state]는 [rememberBulletedListTextFieldState]로 만든 것이어야 한다. 맨 앞 sentinel을 전제로 동작하기 때문이다.
  * - 기본값도 `BasicTextField`와 같다. 테마 색(다크모드 등)이 필요하면 호출부가 [textStyle], [cursorBrush]로 넘긴다.
+ * - 문단 맨 앞이 `라벨: `이면 라벨을 Pill로 보여 준다. 규칙과 그리기는 `Pill.kt`에 있다.
+ *
+ * @param pillStyle Pill 모양.
  */
 @Composable
 internal fun BulletedListTextField(
@@ -63,6 +66,7 @@ internal fun BulletedListTextField(
     cursorBrush: Brush = SolidColor(Color.Black), // BasicTextFieldDefaults.CursorBrush와 같은 값 (그 객체는 private이라 직접 못 쓴다)
     decorator: TextFieldDecorator? = null,
     scrollState: ScrollState = rememberScrollState(),
+    pillStyle: PillStyle = PillStyle(),
 ) {
     /** 불릿 한 개를 [textStyle]로 측정한 결과. 불릿 칸의 폭과 그리기에 같이 쓴다. */
     val textMeasurer = rememberTextMeasurer()
@@ -79,6 +83,7 @@ internal fun BulletedListTextField(
         enabled = enabled,
         readOnly = readOnly,
         inputTransformation = BulletedListInputTransformation,
+        outputTransformation = BulletedListOutputTransformation,
         textStyle = textStyle,
         keyboardOptions = keyboardOptions,
         onKeyboardAction = onKeyboardAction,
@@ -110,6 +115,7 @@ internal fun BulletedListTextField(
                                 } else {
                                     Offset(0f, -scrollOffset) // 여러 줄 모드는 세로로 스크롤된다
                                 }
+                                drawPills(layout, pillStyle, textOrigin = scroll + Offset(bulletLayout.size.width.toFloat(), 0f)) // 텍스트는 불릿 칸 오른쪽에서 시작한다
                                 drawBullets(layout, bulletLayout, scroll)
                             }
                         }

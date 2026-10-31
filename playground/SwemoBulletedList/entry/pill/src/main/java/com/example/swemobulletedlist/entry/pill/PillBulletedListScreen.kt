@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun PillBulletedListScreen(
     modifier: Modifier = Modifier,
-    initialText: String = "Sample Text",
+    initialText: String = "Sample Text\n123\n사과: 빨간 것\n456",
 ) {
     val state = rememberBulletedListTextFieldState(initialText)
     /**
@@ -46,6 +46,7 @@ fun PillBulletedListScreen(
             .padding(16.dp),
         textStyle = textStyle,
         cursorBrush = SolidColor(textStyle.color), // 기본값(검정)은 다크모드에서 안 보인다
+        pillStyle = PillStyle(color = MaterialTheme.colorScheme.secondaryContainer),
     )
 }
 
@@ -58,5 +59,5 @@ private fun PillBulletedListScreenEmptyPreview() {
 @Preview(name = "항목 여러 개", showBackground = true)
 @Composable
 private fun PillBulletedListScreenFilledPreview() {
-    PillBulletedListScreen(initialText = "우유 사기\n계란 사기\n빵 사기")
+    PillBulletedListScreen(initialText = "우유 사기\n사과: 빨갛고 단단한 것으로\n빵 사기")
 }
