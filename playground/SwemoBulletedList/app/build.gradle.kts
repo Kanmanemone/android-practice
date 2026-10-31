@@ -47,6 +47,7 @@ dependencies {
     implementation(project(":entry:plain-bulleted-list"))
     implementation(project(":entry:refactored"))
     implementation(project(":entry:pill"))
+    implementation(project(":entry:testbed"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
